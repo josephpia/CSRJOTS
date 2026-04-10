@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>My Profile</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #1f2937;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        .info-group {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f9fafb;
+            border-radius: 10px;
+        }
+        .info-label {
+            font-weight: bold;
+            color: #6b7280;
+            display: inline-block;
+            width: 120px;
+        }
+        .info-value {
+            color: #1f2937;
+        }
+        .back-btn {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>👤 My Profile</h1>
+        <div class="info-group">
+            <div><span class="info-label">Username:</span> <span class="info-value">{{ user.username }}</span></div>
+            <div><span class="info-label">Full Name:</span> <span class="info-value">{{ user.firstname }} {{ user.middlename }} {{ user.lastname }}</span></div>
+            <div><span class="info-label">Age:</span> <span class="info-value">{{ user.age }}</span></div>
+            <div><span class="info-label">Address:</span> <span class="info-value">{{ user.address }}</span></div>
+            <div><span class="info-label">Birthdate:</span> <span class="info-value">{{ user.birthdate }}</span></div>
+            <div><span class="info-label">Email:</span> <span class="info-value">{{ user.email }}</span></div>
+            <div><span class="info-label">Cellphone:</span> <span class="info-value">{{ user.cellphone }}</span></div>
+            <div><span class="info-label">Joined:</span> <span class="info-value">{{ user.join_date }}</span></div>
+            <div><span class="info-label">Total Requests:</span> <span class="info-value">{{ user_requests|length }}</span></div>
+        </div>
+        <a href="/userdashboard" class="back-btn">← Back to Dashboard</a>
+    </div>
+</body>
+</html>
