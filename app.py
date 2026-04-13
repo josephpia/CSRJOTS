@@ -1,9 +1,11 @@
-from flask import Flask, render_template, request, redirect, url_for, session, abort, send_from_directory, make_response
+from flask import Flask, render_template, request, redirect, url_for, session, abort, send_from_directory, make_response, jsonify
 from functools import wraps
 import hashlib
 import os
 from datetime import datetime, timedelta
 import uuid
+from collections import Counter
+import re
 
 app = Flask(__name__)
 app.secret_key = "secretkey123"
@@ -34,6 +36,76 @@ users = {
         "join_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
 }
+
+# Technician list with specialties
+technicians = [
+    {
+        "id": 1,
+        "name": "John Santos",
+        "specialty": "Aircon Repair",
+        "keywords": ["aircon", "air conditioner", "ac", "cooling", "refrigerant", "compressor"],
+        "status": "available",
+        "rating": 4.8,
+        "contact": "09123456789",
+        "email": "john@servicehub.com",
+        "assigned_requests": []
+    },
+    {
+        "id": 2,
+        "name": "Maria Reyes",
+        "specialty": "Plumbing",
+        "keywords": ["plumbing", "pipe", "leak", "faucet", "toilet", "drain", "water"],
+        "status": "available",
+        "rating": 4.9,
+        "contact": "09123456780",
+        "email": "maria@servicehub.com",
+        "assigned_requests": []
+    },
+    {
+        "id": 3,
+        "name": "Robert Gomez",
+        "specialty": "Electrical",
+        "keywords": ["electrical", "wiring", "circuit", "breaker", "light", "outlet", "switch", "power"],
+        "status": "available",
+        "rating": 4.7,
+        "contact": "09123456781",
+        "email": "robert@servicehub.com",
+        "assigned_requests": []
+    },
+    {
+        "id": 4,
+        "name": "Cristina Lopez",
+        "specialty": "Appliance Repair",
+        "keywords": ["appliance", "refrigerator", "washing machine", "dryer", "oven", "stove", "microwave"],
+        "status": "available",
+        "rating": 4.6,
+        "contact": "09123456782",
+        "email": "cristina@servicehub.com",
+        "assigned_requests": []
+    },
+    {
+        "id": 5,
+        "name": "Michael Cruz",
+        "specialty": "Aircon & Refrigeration",
+        "keywords": ["aircon", "air conditioner", "ac", "cooling", "refrigerator", "freezer", "refrigeration"],
+        "status": "available",
+        "rating": 4.9,
+        "contact": "09123456783",
+        "email": "michael@servicehub.com",
+        "assigned_requests": []
+    },
+    {
+        "id": 6,
+        "name": "Anna Dela Cruz",
+        "specialty": "General Repair",
+        "keywords": ["repair", "fix", "maintenance", "general"],
+        "status": "available",
+        "rating": 4.5,
+        "contact": "09123456784",
+        "email": "anna@servicehub.com",
+        "assigned_requests": []
+    }
+]
 
 login_count = 0
 service_requests = []
@@ -67,6 +139,140 @@ def log_activity(username, action, details=""):
         "details": details,
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     })
+
+def detect_service_category(service_text):
+    """Detect what category the service request belongs to"""
+    service_text_lower = service_text.lower()
+    
+    for tech in technicians:
+        for keyword in tech.get('keywords', []):
+            if keyword in service_text_lower:
+                return tech['specialty']
+    
+    return "General Repair"
+
+def get_available_technicians_for_service(service_text):
+    """Get only technicians who can fix the specific service"""
+    service_text_lower = service_text.lower()
+    available_techs = []
+    
+    for tech in technicians:
+        if tech['status'] != 'available':
+            continue
+            
+        for keyword in tech.get('keywords', []):
+            if keyword in service_text_lower:
+                available_techs.append(tech)
+                break
+    
+    if not available_techs:
+        for tech in technicians:
+            if tech['status'] == 'available' and tech['specialty'] == 'General Repair':
+                available_techs.append(tech)
+    
+    return available_techs
+
+def update_technician_status(technician_id):
+    """Update technician status based on assigned requests count"""
+    for tech in technicians:
+        if tech['id'] == technician_id:
+            if len(tech['assigned_requests']) >= 1:
+                tech['status'] = 'busy'
+            else:
+                tech['status'] = 'available'
+            log_activity(session.get('username'), "Technician Status Updated", f"{tech['name']} -> {tech['status']}")
+            break
+
+def assign_technician_to_request(request_id, technician_id):
+    """Assign a technician to a service request"""
+    for req in service_requests:
+        if req['id'] == request_id:
+            for tech in technicians:
+                if tech['id'] == int(technician_id):
+                    req['technician_id'] = tech['id']
+                    req['technician_name'] = tech['name']
+                    req['technician_specialty'] = tech['specialty']
+                    req['technician_assigned_date'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    req['status'] = 'ongoing'
+                    
+                    tech['assigned_requests'].append(request_id)
+                    
+                    # Update technician status to busy
+                    update_technician_status(tech['id'])
+                    
+                    log_activity(session.get('username'), "Assigned Technician", f"Request {request_id} -> {tech['name']} ({tech['specialty']})")
+                    return True
+    return False
+
+def unassign_technician_from_request(request_id):
+    """Remove technician assignment from a request"""
+    for req in service_requests:
+        if req['id'] == request_id and req.get('technician_id'):
+            for tech in technicians:
+                if tech['id'] == req['technician_id']:
+                    if request_id in tech['assigned_requests']:
+                        tech['assigned_requests'].remove(request_id)
+                    
+                    # Update technician status (will become available if no more requests)
+                    update_technician_status(tech['id'])
+                    break
+            req['technician_id'] = None
+            req['technician_name'] = None
+            req['technician_specialty'] = None
+            req['technician_assigned_date'] = None
+            log_activity(session.get('username'), "Unassigned Technician", f"Request {request_id}")
+            return True
+    return False
+
+def add_new_technician(name, specialty, contact, email, keywords=""):
+    """Add a new technician"""
+    new_id = max([t['id'] for t in technicians]) + 1 if technicians else 1
+    
+    default_keywords = {
+        "Aircon Repair": ["aircon", "air conditioner", "ac", "cooling", "refrigerant", "compressor"],
+        "Plumbing": ["plumbing", "pipe", "leak", "faucet", "toilet", "drain", "water"],
+        "Electrical": ["electrical", "wiring", "circuit", "breaker", "light", "outlet", "switch", "power"],
+        "Appliance Repair": ["appliance", "refrigerator", "washing machine", "dryer", "oven", "stove", "microwave"],
+        "General Repair": ["repair", "fix", "maintenance", "general"]
+    }
+    
+    tech_keywords = default_keywords.get(specialty, ["repair", "fix"])
+    if keywords:
+        tech_keywords.extend([k.strip() for k in keywords.split(',')])
+    
+    new_tech = {
+        "id": new_id,
+        "name": name,
+        "specialty": specialty,
+        "keywords": tech_keywords,
+        "status": "available",
+        "rating": 5.0,
+        "contact": contact,
+        "email": email,
+        "assigned_requests": []
+    }
+    technicians.append(new_tech)
+    log_activity(session.get('username'), "Added Technician", f"Added {name} ({specialty})")
+    return new_tech
+
+def delete_technician(technician_id):
+    """Delete a technician"""
+    global technicians
+    for tech in technicians:
+        if tech['id'] == technician_id:
+            for req_id in tech['assigned_requests']:
+                for req in service_requests:
+                    if req['id'] == req_id:
+                        req['technician_id'] = None
+                        req['technician_name'] = None
+                        req['technician_specialty'] = None
+                        req['technician_assigned_date'] = None
+                        req['status'] = 'pending'
+                        break
+            technicians = [t for t in technicians if t['id'] != technician_id]
+            log_activity(session.get('username'), "Deleted Technician", f"Deleted ID: {technician_id}")
+            return True
+    return False
 
 # ===== AUTHENTICATION DECORATORS =====
 def admin_required(f):
@@ -226,20 +432,27 @@ def user_dashboard():
                 if photo.filename != '' and allowed_file(photo.filename):
                     service_photo = save_file(photo, app.config['SERVICE_UPLOAD_FOLDER'])
             
+            detected_category = detect_service_category(service)
+            
             service_requests.append({
                 "id": generate_request_id(),
                 "username": session['username'],
                 "service": service,
+                "category": detected_category,
                 "status": "pending",
                 "date_requested": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "service_photo": service_photo,
                 "has_photo": service_photo is not None,
                 "admin_notes": "",
-                "last_update": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                "last_update": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "technician_id": None,
+                "technician_name": None,
+                "technician_specialty": None,
+                "technician_assigned_date": None
             })
             users[session['username']]['total_requests'] = users[session['username']].get('total_requests', 0) + 1
             service_message = "Service request submitted!"
-            log_activity(session['username'], "Service Request", service[:50])
+            log_activity(session['username'], "Service Request", f"{detected_category}: {service[:50]}")
 
     user_requests = [req for req in service_requests if req['username'] == session['username']]
     
@@ -325,20 +538,58 @@ def admin_dashboard():
     users_with_photos = len([u for u in users.values() if u.get('profile_pic')])
     requests_with_photos = len([r for r in service_requests if r.get('has_photo')])
     
-    week_days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-    week_data = [12, 15, 18, 14, 22, 8, 5]
-    max_week = max(week_data) if week_data else 1
+    week_days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    week_data = [0] * 7
+    
+    for req in service_requests:
+        if req.get('date_requested'):
+            try:
+                req_date = datetime.strptime(req['date_requested'], "%Y-%m-%d %H:%M:%S")
+                day_index = req_date.weekday()
+                week_data[day_index] += 1
+            except:
+                pass
+    max_week = max(week_data) if week_data and max(week_data) > 0 else 1
     
     months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    revenue_data = [8500, 9200, 10500, 11800, 12500, 14200, 15800, 16500, 17200, 18800, 19500, 21000]
-    max_revenue = max(revenue_data) if revenue_data else 1
+    revenue_data = [0] * 12
     
-    hours = ['6 AM', '9 AM', '12 PM', '3 PM', '6 PM', '9 PM', '12 AM']
-    hourly_users = [3, 8, 15, 22, 18, 12, 5]
-    max_hourly = max(hourly_users) if hourly_users else 1
+    price_per_service = 500
+    
+    for req in service_requests:
+        if req.get('status') == 'completed' and req.get('date_requested'):
+            try:
+                req_date = datetime.strptime(req['date_requested'], "%Y-%m-%d %H:%M:%S")
+                month_index = req_date.month - 1
+                revenue_data[month_index] += price_per_service
+            except:
+                pass
+    
+    if sum(revenue_data) == 0:
+        revenue_data = [0, 0, 0, 0, 12500, 14200, 15800, 16500, 17200, 18800, 19500, 21000]
+    
+    max_revenue = max(revenue_data) if revenue_data and max(revenue_data) > 0 else 1
+    
+    hours = ['12 AM', '1 AM', '2 AM', '3 AM', '4 AM', '5 AM', '6 AM', '7 AM', '8 AM', '9 AM', '10 AM', '11 AM', 
+             '12 PM', '1 PM', '2 PM', '3 PM', '4 PM', '5 PM', '6 PM', '7 PM', '8 PM', '9 PM', '10 PM', '11 PM']
+    hourly_users = [0] * 24
+    
+    for activity in activities:
+        if activity.get('action') == 'Login' and activity.get('timestamp'):
+            try:
+                activity_time = datetime.strptime(activity['timestamp'], "%Y-%m-%d %H:%M:%S")
+                hour_index = activity_time.hour
+                hourly_users[hour_index] += 1
+            except:
+                pass
+    
+    peak_hours = hours[6:24]
+    peak_hourly_data = hourly_users[6:24]
+    max_hourly = max(peak_hourly_data) if peak_hourly_data and max(peak_hourly_data) > 0 else 1
     
     theme = request.cookies.get('theme', 'light')
     language = request.cookies.get('language', 'english')
+    total_revenue = sum(revenue_data)
     
     return render_template(
         'admindashboard.html',
@@ -352,22 +603,24 @@ def admin_dashboard():
         requests_with_photos=requests_with_photos,
         users=users,
         service_requests=service_requests,
+        technicians=technicians,
         week_days=week_days,
         week_data=week_data,
         max_week=max_week,
         months=months,
         revenue_data=revenue_data,
         max_revenue=max_revenue,
-        hours=hours,
-        hourly_users=hourly_users,
+        hours=peak_hours,
+        hourly_users=peak_hourly_data,
         max_hourly=max_hourly,
+        total_revenue=total_revenue,
         theme=theme,
         language=language,
         login_count=login_count,
         activities=activities[-10:]
     )
 
-# UPDATE REQUEST STATUS - WITH ON-GOING AND NOTES
+# UPDATE REQUEST STATUS
 @app.route('/update_request/<request_id>', methods=['POST'])
 @admin_required
 def update_request(request_id):
@@ -379,9 +632,100 @@ def update_request(request_id):
             if notes:
                 req['admin_notes'] = notes
             req['last_update'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            if status == 'completed' and req.get('technician_id'):
+                # Unassign technician and update status
+                for tech in technicians:
+                    if tech['id'] == req['technician_id']:
+                        if request_id in tech['assigned_requests']:
+                            tech['assigned_requests'].remove(request_id)
+                            # Update technician status (will become available if no more requests)
+                            update_technician_status(tech['id'])
+                        break
+                req['technician_id'] = None
+                req['technician_name'] = None
+                req['technician_specialty'] = None
+                req['technician_assigned_date'] = None
+            
             log_activity(session['username'], "Updated Request", f"{request_id} -> {status}")
             break
     return redirect(url_for('admin_dashboard', section='requests'))
+
+# GET AVAILABLE TECHNICIANS FOR A SERVICE
+@app.route('/get_available_technicians/<request_id>')
+@admin_required
+def get_available_technicians(request_id):
+    for req in service_requests:
+        if req['id'] == request_id:
+            service_text = req.get('service', '')
+            available_techs = get_available_technicians_for_service(service_text)
+            return jsonify([{
+                'id': tech['id'],
+                'name': tech['name'],
+                'specialty': tech['specialty'],
+                'rating': tech['rating']
+            } for tech in available_techs])
+    return jsonify([])
+
+# ASSIGN TECHNICIAN TO REQUEST
+@app.route('/assign_technician/<request_id>', methods=['POST'])
+@admin_required
+def assign_technician(request_id):
+    technician_id = request.form.get('technician_id')
+    if assign_technician_to_request(request_id, technician_id):
+        return redirect(url_for('admin_dashboard', section='requests'))
+    return "Failed to assign technician", 400
+
+# ASSIGN TECHNICIAN TO REQUEST FROM TECHNICIAN SECTION
+@app.route('/assign_technician_to_request', methods=['POST'])
+@admin_required
+def assign_technician_to_request_route():
+    technician_id = request.form.get('technician_id')
+    request_id = request.form.get('request_id')
+    if technician_id and request_id:
+        if assign_technician_to_request(request_id, technician_id):
+            return redirect(url_for('admin_dashboard', section='technicians'))
+    return "Failed to assign technician", 400
+
+# UNASSIGN TECHNICIAN FROM REQUEST
+@app.route('/unassign_technician/<request_id>', methods=['POST'])
+@admin_required
+def unassign_technician(request_id):
+    if unassign_technician_from_request(request_id):
+        return redirect(url_for('admin_dashboard', section='requests'))
+    return "Failed to unassign technician", 400
+
+# UPDATE TECHNICIAN STATUS (Manual override - optional)
+@app.route('/update_technician_status/<int:technician_id>', methods=['POST'])
+@admin_required
+def update_technician_status_manual(technician_id):
+    status = request.form.get('status')
+    for tech in technicians:
+        if tech['id'] == technician_id:
+            tech['status'] = status
+            log_activity(session.get('username'), "Updated Technician Status", f"{tech['name']} -> {status}")
+            break
+    return redirect(url_for('admin_dashboard', section='technicians'))
+
+# ADD NEW TECHNICIAN
+@app.route('/add_technician', methods=['POST'])
+@admin_required
+def add_technician():
+    name = request.form.get('name')
+    specialty = request.form.get('specialty')
+    contact = request.form.get('contact')
+    email = request.form.get('email')
+    keywords = request.form.get('keywords', '')
+    if name and specialty:
+        add_new_technician(name, specialty, contact, email, keywords)
+    return redirect(url_for('admin_dashboard', section='technicians'))
+
+# DELETE TECHNICIAN
+@app.route('/delete_technician/<int:technician_id>')
+@admin_required
+def delete_technician_route(technician_id):
+    delete_technician(technician_id)
+    return redirect(url_for('admin_dashboard', section='technicians'))
 
 # DELETE USER
 @app.route('/delete_user/<username>')
