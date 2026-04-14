@@ -66,7 +66,7 @@ Users can view descriptions and choose to "Login" or "Sign Up" to access the sys
 ## Authentication
 Use the following credentials to access the system:
 
-Role	Username	Password
+* **Role	Username	Password**
 Admin	admin	    1234
 User	(Create your own account via Sign Up)	(Your chosen password)
 
