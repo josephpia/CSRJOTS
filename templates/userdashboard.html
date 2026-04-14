@@ -74,6 +74,40 @@
             color: #9ca3af;
         }
 
+        /* Wallet Balance Display */
+        .wallet-balance-box {
+            margin-top: 15px;
+            padding: 12px;
+            background: rgba(16, 185, 129, 0.15);
+            border-radius: 10px;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .wallet-balance-box .wallet-label {
+            font-size: 11px;
+            color: #9ca3af;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .wallet-balance-box .wallet-amount {
+            font-size: 24px;
+            font-weight: bold;
+            color: #10b981;
+        }
+
+        .wallet-balance-box .wallet-link {
+            display: block;
+            margin-top: 8px;
+            font-size: 12px;
+            color: #10b981;
+            text-decoration: none;
+        }
+
+        .wallet-balance-box .wallet-link:hover {
+            text-decoration: underline;
+        }
+
         .sidebar .stats {
             margin-top: 20px;
             padding: 15px;
@@ -86,6 +120,25 @@
             justify-content: space-between;
             margin: 10px 0;
             font-size: 14px;
+        }
+
+        /* Payments Button */
+        .payments-nav-btn {
+            display: block;
+            text-align: center;
+            margin: 15px 0;
+            padding: 12px;
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .payments-nav-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
         }
 
         .logout-btn {
@@ -257,12 +310,27 @@
             margin: 0 3px;
         }
 
+        .btn-pay {
+            display: inline-block;
+            padding: 5px 10px;
+            background: #10b981;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 12px;
+            margin: 0 3px;
+        }
+
         .btn-edit:hover {
             background: #5a67d8;
         }
 
         .btn-delete:hover {
             background: #dc2626;
+        }
+
+        .btn-pay:hover {
+            background: #059669;
         }
 
         /* ALERTS */
@@ -335,6 +403,30 @@
             color: #065f46;
         }
 
+        .payment-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 5px;
+        }
+
+        .payment-paid {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .payment-unpaid {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .payment-pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
         .photo-thumb {
             width: 50px;
             height: 50px;
@@ -391,6 +483,13 @@
         <div class="username">{{ session['username'] }}</div>
         <div class="role">Customer</div>
         <small style="color: #9ca3af; font-size: 11px;">Click photo to change</small>
+        
+        <!-- Wallet Balance Display -->
+        <div class="wallet-balance-box">
+            <div class="wallet-label">💰 Wallet Balance</div>
+            <div class="wallet-amount">₱{{ user.wallet_balance|default(0) }}</div>
+            <a href="/payments" class="wallet-link">Manage Wallet →</a>
+        </div>
     </div>
 
     <div class="stats">
@@ -411,6 +510,11 @@
             <span>{{ user_requests|selectattr('status', 'equalto', 'pending')|list|length }}</span>
         </div>
     </div>
+
+    <!-- Payments & Wallet Navigation Button -->
+    <a href="/payments" class="payments-nav-btn">
+        💳 Payments & Wallet
+    </a>
 
     <a href="/profile" style="display: block; text-align: center; margin: 15px 0; padding: 10px; background: #374151; color: white; text-decoration: none; border-radius: 8px;">
         👤 View Full Profile
@@ -502,6 +606,7 @@
                         <th>Problem Description</th>
                         <th>Photo</th>
                         <th>Status</th>
+                        <th>Payment</th>
                         <th>Date</th>
                         <th>Admin Update</th>
                         <th>Actions</th>
@@ -511,7 +616,7 @@
                     {% for req in user_requests %}
                     <tr>
                         <td><strong>{{ req.id }}</strong></td>
-                        <td style="max-width: 250px;">{{ req.service[:80] }}{% if req.service|length > 80 %}...{% endif %}</td>
+                        <td style="max-width: 200px;">{{ req.service[:60] }}{% if req.service|length > 60 %}...{% endif %}</td>
                         <td>
                             {% if req.service_photo %}
                                 <img src="{{ url_for('view_service_photo', request_id=req.id) }}" 
@@ -531,6 +636,17 @@
                                 <span class="status-badge status-completed">✅ Completed</span>
                             {% endif %}
                         </td>
+                        <td>
+                            {% if req.payment_status == 'paid' %}
+                                <span class="payment-badge payment-paid">✅ Paid</span>
+                            {% elif req.payment_status == 'pending' %}
+                                <span class="payment-badge payment-pending">🔍 Pending</span>
+                            {% elif req.status != 'completed' %}
+                                <span class="payment-badge payment-unpaid">💳 Unpaid</span>
+                            {% else %}
+                                <span style="color: #9ca3af;">—</span>
+                            {% endif %}
+                        </td>
                         <td>{{ req.date_requested[:16] }}</td>
                         <td>
                             {% if req.admin_notes %}
@@ -546,6 +662,15 @@
                             {% if req.status == 'pending' %}
                                 <a href="/edit_request/{{ req.id }}" class="btn-edit">✏️ Edit</a>
                                 <a href="/delete_my_request/{{ req.id }}" class="btn-delete" onclick="return confirm('Delete this request?')">🗑️ Delete</a>
+                                {% if req.payment_status != 'paid' %}
+                                    <a href="/create_payment/{{ req.id }}" class="btn-pay">💳 Pay</a>
+                                {% endif %}
+                            {% elif req.status == 'ongoing' %}
+                                {% if req.payment_status != 'paid' %}
+                                    <a href="/create_payment/{{ req.id }}" class="btn-pay">💳 Pay Now</a>
+                                {% else %}
+                                    <span style="color: #9ca3af;">🔒 Locked</span>
+                                {% endif %}
                             {% else %}
                                 <span style="color: #9ca3af;">🔒 Locked</span>
                             {% endif %}
@@ -584,9 +709,9 @@
                 <p style="font-size: 13px; color: #6b7280; margin-top: 5px;">Include brand, model, and specific problem</p>
             </div>
             <div style="padding: 15px; background: #f9fafb; border-radius: 10px;">
-                <div style="font-size: 24px;">📞</div>
-                <strong>Keep Contact Updated</strong>
-                <p style="font-size: 13px; color: #6b7280; margin-top: 5px;">So we can reach you quickly</p>
+                <div style="font-size: 24px;">💳</div>
+                <strong>Pay Online</strong>
+                <p style="font-size: 13px; color: #6b7280; margin-top: 5px;">Use GCash, Maya, or Bank Transfer for faster processing</p>
             </div>
         </div>
     </div>
