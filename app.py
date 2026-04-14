@@ -6,6 +6,9 @@ from datetime import datetime, timedelta
 import uuid
 from collections import Counter
 import re
+import qrcode
+from io import BytesIO
+import base64
 
 app = Flask(__name__)
 app.secret_key = "secretkey123"
@@ -42,7 +45,7 @@ technicians = [
     {
         "id": 1,
         "name": "John Santos",
-        "specialty": "Aircon Repair",
+        "specialty": "Appliances Repair",
         "keywords": ["aircon", "air conditioner", "ac", "cooling", "refrigerant", "compressor"],
         "status": "available",
         "rating": 4.8,
@@ -53,7 +56,7 @@ technicians = [
     {
         "id": 2,
         "name": "Maria Reyes",
-        "specialty": "Plumbing",
+        "specialty": "Plumbing Repair",
         "keywords": ["plumbing", "pipe", "leak", "faucet", "toilet", "drain", "water"],
         "status": "available",
         "rating": 4.9,
@@ -64,7 +67,7 @@ technicians = [
     {
         "id": 3,
         "name": "Robert Gomez",
-        "specialty": "Electrical",
+        "specialty": "Electrical Repair",
         "keywords": ["electrical", "wiring", "circuit", "breaker", "light", "outlet", "switch", "power"],
         "status": "available",
         "rating": 4.7,
@@ -75,8 +78,8 @@ technicians = [
     {
         "id": 4,
         "name": "Cristina Lopez",
-        "specialty": "Appliance Repair",
-        "keywords": ["appliance", "refrigerator", "washing machine", "dryer", "oven", "stove", "microwave"],
+        "specialty": "Electronics Repair",
+        "keywords": ["phones", "tablets", "headphones", "game consoles", "smartwatches"],
         "status": "available",
         "rating": 4.6,
         "contact": "09123456782",
@@ -84,27 +87,17 @@ technicians = [
         "assigned_requests": []
     },
     {
-        "id": 5,
-        "name": "Michael Cruz",
-        "specialty": "Aircon & Refrigeration",
-        "keywords": ["aircon", "air conditioner", "ac", "cooling", "refrigerator", "freezer", "refrigeration"],
+         "id": 5,
+        "name": "Robert Martinez",
+        "specialty": "Appliances Repair",
+        "keywords": ["aircon", "air conditioner", "ac", "cooling", "refrigerant", "compressor"],
         "status": "available",
         "rating": 4.9,
-        "contact": "09123456783",
-        "email": "michael@servicehub.com",
+        "contact": "09123456789",
+        "email": "robert@servicehub.com",
         "assigned_requests": []
     },
-    {
-        "id": 6,
-        "name": "Anna Dela Cruz",
-        "specialty": "General Repair",
-        "keywords": ["repair", "fix", "maintenance", "general"],
-        "status": "available",
-        "rating": 4.5,
-        "contact": "09123456784",
-        "email": "anna@servicehub.com",
-        "assigned_requests": []
-    }
+   
 ]
 
 login_count = 0
@@ -143,12 +136,11 @@ COMPANY_PAYMENT_ACCOUNTS = {
 
 # Service prices
 SERVICE_PRICES = {
-    'Aircon Repair': 800,
-    'Plumbing': 600,
-    'Electrical': 700,
-    'Appliance Repair': 500,
-    'General Repair': 400,
-    'HVAC': 900
+    'Appliances Repair': 800,
+    'Plumbing Repair': 650,
+    'Electrical Repair': 700,
+    'Electronics Repair': 400,
+    
 }
 
 def calculate_service_amount(category):
@@ -536,7 +528,7 @@ def user_dashboard():
                          payment_method=payment_method,
                          pay_request=pay_request)
 
-# ===== PAYMENT ROUTES (FIXED) =====
+# ===== PAYMENT ROUTES =====
 
 @app.route('/create_payment/<request_id>', methods=['GET'])
 @login_required
@@ -627,7 +619,7 @@ def process_payment_direct():
             message='Please prepare exact amount for the technician upon arrival.')
 
 
-# ADMIN VERIFY ONLINE PAYMENT (FIXED - matches 'for_verification' status)
+# ADMIN VERIFY ONLINE PAYMENT
 @app.route('/verify_payment/<payment_id>', methods=['POST'])
 @admin_required
 def verify_payment(payment_id):
@@ -739,6 +731,65 @@ def process_payment():
     
     # Redirect back to user dashboard with success message
     return redirect(url_for('user_dashboard', payment_success='true', amount=amount, method=payment_method))
+
+# ===== QR CODE GENERATION =====
+
+@app.route('/generate_qr/<payment_method>/<amount>/<request_id>')
+@login_required
+def generate_qr(payment_method, amount, request_id):
+    """Generate QR code for payment"""
+    username = session['username']
+    
+    # Create payment data based on method
+    if payment_method == 'GCash':
+        payment_data = f"""GCash Payment
+Amount: ₱{amount}
+Account: 0999-888-7777
+Account Name: ServiceHub PH
+Reference: {request_id}
+Customer: {username}
+Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+    elif payment_method == 'PayMaya':
+        payment_data = f"""PayMaya Payment
+Amount: ₱{amount}
+Account: 0988-777-6666
+Account Name: ServiceHub
+Reference: {request_id}
+Customer: {username}
+Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+    elif payment_method == 'PayPal':
+        payment_data = f"""PayPal Payment
+Amount: ₱{amount}
+Email: payments@servicehub.com
+Account Name: ServiceHub Solutions
+Reference: {request_id}
+Customer: {username}
+Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+    elif payment_method == 'Bank Transfer':
+        payment_data = f"""Bank Transfer Payment
+Amount: ₱{amount}
+Bank: BDO
+Account: 0045-1234-5678
+Account Name: ServiceHub Solutions Inc.
+Reference: {request_id}
+Customer: {username}
+Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+    else:
+        payment_data = f"Payment Amount: ₱{amount}\nReference: {request_id}\nCustomer: {username}"
+    
+    # Generate QR code
+    qr = qrcode.QRCode(version=1, box_size=10, border=4)
+    qr.add_data(payment_data)
+    qr.make(fit=True)
+    
+    img = qr.make_image(fill_color="black", back_color="white")
+    
+    # Convert to base64 for embedding in HTML
+    buffered = BytesIO()
+    img.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode()
+    
+    return jsonify({'qr_code': img_str, 'payment_data': payment_data})
 
 # EDIT REQUEST
 @app.route('/edit_request/<request_id>', methods=['GET', 'POST'])
