@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Payment - ServiceHub</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+        .payment-container { max-width: 550px; margin: 50px auto; background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+        .payment-header { background: linear-gradient(135deg, #1f2937, #111827); color: white; padding: 25px; text-align: center; }
+        .payment-body { padding: 30px; }
+        .bill-summary { background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 20px; border-radius: 15px; margin-bottom: 25px; }
+        .bill-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.2); }
+        .bill-total { display: flex; justify-content: space-between; padding: 15px 0 0; font-size: 20px; font-weight: bold; border-top: 2px solid rgba(255,255,255,0.3); }
+        .payment-method { border: 2px solid #e5e7eb; border-radius: 12px; padding: 15px; margin-bottom: 15px; cursor: pointer; transition: all 0.3s; }
+        .payment-method.selected { border-color: #10b981; background: #f0fdf4; }
+        .online-apps { margin-left: 30px; display: none; }
+        .online-apps.show { display: block; }
+        .online-app { border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; margin-bottom: 8px; cursor: pointer; display: flex; align-items: center; gap: 12px; }
+        .online-app.selected { border-color: #10b981; background: #f0fdf4; }
+        .verification-box { background: #fef3c7; padding: 15px; border-radius: 10px; margin: 20px 0; border-left: 4px solid #f59e0b; }
+        .verification-box input { width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; margin-top: 10px; }
+        .btn-submit { width: 100%; padding: 15px; background: linear-gradient(135deg, #10b981, #059669); color: white; border: none; border-radius: 12px; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 20px; }
+        .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-back { display: block; text-align: center; margin-top: 15px; padding: 12px; background: #6b7280; color: white; text-decoration: none; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <div class="payment-container">
+        <div class="payment-header">
+            <h1>💰 Complete Payment</h1>
+            <p>Request ID: {{ request_id }}</p>
+        </div>
+        <div class="payment-body">
+            <div class="bill-summary">
+                <h3>🧾 Bill Summary</h3>
+                <div class="bill-item"><span>Service Request</span><span>₱{{ amount }}</span></div>
+                <div class="bill-item"><span>Service Fee</span><span>₱{{ amount }}</span></div>
+                <div class="bill-total"><span>TOTAL</span><span>₱{{ amount }}</span></div>
+            </div>
+            
+            <form method="POST" action="/process_payment_direct">
+                <input type="hidden" name="request_id" value="{{ request_id }}">
+                <input type="hidden" name="amount" value="{{ amount }}">
+                
+                <div class="payment-method" id="onlineMethod" onclick="selectOnline()">
+                    <div><strong>💻 Online Payment</strong><small> GCash, PayMaya, PayPal, Bank Transfer</small></div>
+                </div>
+                
+                <div id="onlineApps" class="online-apps">
+                    <div class="online-app" onclick="selectApp('GCash')">📱 GCash - 0999-888-7777</div>
+                    <div class="online-app" onclick="selectApp('PayMaya')">💳 PayMaya - 0988-777-6666</div>
+                    <div class="online-app" onclick="selectApp('PayPal')">🌐 PayPal - payments@servicehub.com</div>
+                    <div class="online-app" onclick="selectApp('Bank Transfer')">🏦 Bank Transfer - BDO 0045-1234-5678</div>
+                </div>
+                
+                <div class="payment-method" id="cashMethod" onclick="selectCash()">
+                    <div><strong>💵 Cash Payment</strong><small> Pay upon technician arrival</small></div>
+                </div>
+                
+                <div id="verificationBox" class="verification-box" style="display:none">
+                    <strong>🔐 Reference Number</strong>
+                    <input type="text" name="reference_number" id="referenceNumber" placeholder="Enter transaction reference number">
+                </div>
+                
+                <input type="hidden" name="payment_method" id="paymentMethodInput">
+                <input type="hidden" name="online_app" id="onlineAppInput">
+                
+                <button type="submit" class="btn-submit" id="submitBtn" disabled>✅ Submit Payment</button>
+                <a href="/userdashboard" class="btn-back">← Back</a>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+        function selectOnline() {
+            document.getElementById('onlineMethod').classList.add('selected');
+            document.getElementById('cashMethod').classList.remove('selected');
+            document.getElementById('onlineApps').classList.add('show');
+            document.getElementById('verificationBox').style.display = 'block';
+            document.getElementById('paymentMethodInput').value = 'online';
+            document.getElementById('submitBtn').disabled = true;
+        }
+        function selectCash() {
+            document.getElementById('cashMethod').classList.add('selected');
+            document.getElementById('onlineMethod').classList.remove('selected');
+            document.getElementById('onlineApps').classList.remove('show');
+            document.getElementById('verificationBox').style.display = 'none';
+            document.getElementById('paymentMethodInput').value = 'cash';
+            document.getElementById('submitBtn').disabled = false;
+        }
+        function selectApp(app) {
+            document.querySelectorAll('.online-app').forEach(el => el.classList.remove('selected'));
+            event.currentTarget.classList.add('selected');
+            document.getElementById('onlineAppInput').value = app;
+            let ref = document.getElementById('referenceNumber');
+            ref.oninput = function() { document.getElementById('submitBtn').disabled = !this.value.trim(); };
+        }
+    </script>
+</body>
+</html>

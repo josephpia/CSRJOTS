@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Payment {{ status }} - ServiceHub</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea, #764ba2); min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }
+        .box { background: white; border-radius: 20px; padding: 40px; max-width: 500px; text-align: center; }
+        .btn { display: inline-block; margin-top: 20px; padding: 12px 24px; background: #667eea; color: white; text-decoration: none; border-radius: 8px; }
+        h1 { color: #10b981; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <div style="font-size: 80px;">{{ icon }}</div>
+        <h1>{{ title }}</h1>
+        <p><strong>Amount:</strong> ₱{{ amount }}</p>
+        <p><strong>Method:</strong> {{ method }}</p>
+        {% if reference %}<p><strong>Reference:</strong> {{ reference }}</p>{% endif %}
+        {% if transaction %}<p><strong>Transaction ID:</strong> {{ transaction }}</p>{% endif %}
+        <p style="color: #f59e0b;">{{ message }}</p>
+        <a href="/userdashboard" class="btn">← Back to Dashboard</a>
+    </div>
+</body>
+</html>

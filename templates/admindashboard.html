@@ -150,7 +150,7 @@
                                 </td>
                                 <td>
                                     {% if req.payment_status == 'paid' %}<span class="badge badge-paid">✅ Paid</span>
-                                    {% elif req.payment_status == 'pending_verification' %}<span class="badge badge-verification">🔍 Pending Verification</span>
+                                    {% elif req.payment_status == 'for_verification' %}<span class="badge badge-verification">🔍 For Verification</span>
                                     {% elif req.payment_status == 'pending_cash' %}<span class="badge badge-pending">💰 Pending Cash</span>
                                     {% else %}<span class="badge badge-pending">⏳ Unpaid</span>{% endif %}
                                 </td>
@@ -165,7 +165,7 @@
                                         <button type="submit" class="btn btn-primary">Update</button>
                                     </form>
                                     <a href="/delete_request/{{ req.id }}" class="btn btn-danger" onclick="return confirm('Delete?')">Delete</a>
-                                 </td>
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -173,45 +173,48 @@
                 </div>
             </div>
 
-            <!-- PAYMENTS SECTION (For Admin Verification) -->
+            <!-- PAYMENTS SECTION (For Admin Verification) - FIXED -->
             <div class="section {% if section == 'payments' %}active{% endif %}">
                 <!-- Payments Awaiting Verification -->
                 <div class="data-table">
                     <h3 style="margin-bottom: 20px; color: #f59e0b;">🔍 Online Payments Awaiting Verification</h3>
                     
-                    {% set has_verification = false %}
+                    {% set verification_payments = [] %}
                     {% for p in payments %}
-                        {% if p.status == 'pending_verification' %}
-                            {% set has_verification = true %}
+                        {% if p.status == 'for_verification' %}
+                            {% set _ = verification_payments.append(p) %}
                         {% endif %}
                     {% endfor %}
                     
-                    {% if has_verification %}
+                    {% if verification_payments %}
                     <table>
                         <thead>
                             <tr><th>Payment ID</th><th>User</th><th>Request ID</th><th>Amount</th><th>Method</th><th>Reference #</th><th>Date</th><th>Actions</th></tr>
                         </thead>
                         <tbody>
-                            {% for p in payments %}
-                                {% if p.status == 'pending_verification' %}
-                                <tr style="background: rgba(245, 158, 11, 0.05);">
-                                    <td><code>{{ p.payment_id }}</code></td>
-                                    <td>{{ p.username }}</td>
-                                    <td>{{ p.request_id }}</td>
-                                    <td><strong>₱{{ p.amount }}</strong></td>
-                                    <td>
-                                        {% if p.online_app %}📱 {{ p.online_app }}
-                                        {% else %}{{ p.payment_method }}{% endif %}
-                                     </td>
-                                    <td>{{ p.reference_number|default('—') }}</td>
-                                    <td>{{ p.payment_date[:10] }}</td>
-                                    <td>
-                                        <form method="POST" action="/admin/verify_payment/{{ p.payment_id }}" style="display: inline;">
-                                            <button type="submit" class="btn btn-success" onclick="return confirm('Verify this payment?')">✅ Verify</button>
-                                        </form>
-                                     </td>
-                                 </tr>
-                                {% endif %}
+                            {% for p in verification_payments %}
+                            <tr style="background: rgba(245, 158, 11, 0.05);">
+                                <td><code>{{ p.payment_id }}</code></td>
+                                <td>{{ p.username }}</td>
+                                <td>{{ p.request_id }}</td>
+                                <td><strong>₱{{ p.amount }}</strong></td>
+                                <td>
+                                    {% if p.online_app %}📱 {{ p.online_app }}
+                                    {% else %}💻 Online{% endif %}
+                                </td>
+                                <td>{{ p.reference_number|default('—') }}</td>
+                                <td>{{ p.payment_date[:10] }}</td>
+                                <td>
+                                    <form method="POST" action="/verify_payment/{{ p.payment_id }}" style="display: inline;" onsubmit="return confirm('Verify this payment?')">
+                                        <input type="hidden" name="action" value="approve">
+                                        <button type="submit" class="btn btn-success">✅ Verify</button>
+                                    </form>
+                                    <form method="POST" action="/verify_payment/{{ p.payment_id }}" style="display: inline;" onsubmit="return confirm('Reject this payment?')">
+                                        <input type="hidden" name="action" value="reject">
+                                        <button type="submit" class="btn btn-danger">❌ Reject</button>
+                                    </form>
+                                </td>
+                            </tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -224,35 +227,33 @@
                 <div class="data-table">
                     <h3 style="margin-bottom: 20px; color: #f59e0b;">💰 Pending Cash Payments</h3>
                     
-                    {% set has_pending_cash = false %}
+                    {% set pending_cash_requests = [] %}
                     {% for req in service_requests %}
                         {% if req.payment_status == 'pending_cash' %}
-                            {% set has_pending_cash = true %}
+                            {% set _ = pending_cash_requests.append(req) %}
                         {% endif %}
                     {% endfor %}
                     
-                    {% if has_pending_cash %}
+                    {% if pending_cash_requests %}
                     <table>
                         <thead>
                             <tr><th>Request ID</th><th>Customer</th><th>Service</th><th>Amount</th><th>Date</th><th>Technician</th><th>Actions</th></tr>
                         </thead>
                         <tbody>
-                            {% for req in service_requests %}
-                                {% if req.payment_status == 'pending_cash' %}
-                                <tr>
-                                    <td>{{ req.id }}</td>
-                                    <td>{{ req.username }}</td>
-                                    <td>{{ req.service[:50] }}...</td>
-                                    <td><strong>₱{{ calculate_service_amount(req.category) }}</strong></td>
-                                    <td>{{ req.date_requested[:10] }}</td>
-                                    <td>{{ req.technician_name|default('Not assigned') }}</td>
-                                    <td>
-                                        <form method="POST" action="/admin/confirm_cash_payment/{{ req.id }}" style="display: inline;">
-                                            <button type="submit" class="btn btn-success" onclick="return confirm('Confirm cash payment from customer?')">💰 Confirm Payment</button>
-                                        </form>
-                                     </td>
-                                </tr>
-                                {% endif %}
+                            {% for req in pending_cash_requests %}
+                            <tr>
+                                <td>{{ req.id }}</td>
+                                <td>{{ req.username }}</td>
+                                <td>{{ req.service[:50] }}...</td>
+                                <td><strong>₱{{ calculate_service_amount(req.category) }}</strong></td>
+                                <td>{{ req.date_requested[:10] }}</td>
+                                <td>{{ req.technician_name|default('Not assigned') }}</td>
+                                <td>
+                                    <form method="POST" action="/admin/confirm_cash_payment/{{ req.id }}" style="display: inline;" onsubmit="return confirm('Confirm cash payment from customer?')">
+                                        <button type="submit" class="btn btn-success">💰 Confirm Payment</button>
+                                    </form>
+                                </td>
+                            </tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -278,20 +279,20 @@
                                 <td><strong>₱{{ p.amount }}</strong></td>
                                 <td>
                                     {% if p.payment_method == 'online' %}
-                                        {% if p.online_app %}📱 {{ p.online_app }}
-                                        {% else %}💻 Online{% endif %}
+                                        {% if p.online_app %}📱 {{ p.online_app }}{% else %}💻 Online{% endif %}
                                     {% else %}💵 Cash{% endif %}
-                                 </td>
+                                </td>
                                 <td>{{ p.reference_number|default('—') }}</td>
                                 <td>
-                                    {% if p.status == 'completed' %}<span class="badge badge-paid">✅ Completed</span>
-                                    {% elif p.status == 'pending_verification' %}<span class="badge badge-verification">🔍 Pending Verification</span>
+                                    {% if p.status == 'paid' %}<span class="badge badge-paid">✅ Paid</span>
+                                    {% elif p.status == 'for_verification' %}<span class="badge badge-verification">🔍 For Verification</span>
                                     {% elif p.status == 'pending_cash' %}<span class="badge badge-pending">💰 Pending Cash</span>
+                                    {% elif p.status == 'rejected' %}<span class="badge badge-rejected">❌ Rejected</span>
                                     {% else %}{{ p.status }}{% endif %}
-                                 </td>
+                                </td>
                                 <td>{{ p.verified_by|default('—') }}</td>
                                 <td>{{ p.payment_date[:10] }}</td>
-                             </tr>
+                            </tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -342,13 +343,13 @@
                                     {% else %}
                                         <span class="badge badge-busy">🔴 Busy ({{ tech.assigned_requests|length }})</span>
                                     {% endif %}
-                                 </td>
+                                </td>
                                 <td>{{ tech.contact }}</td>
                                 <td>{{ tech.assigned_requests|length }}</td>
                                 <td>
                                     <button class="btn btn-success" onclick="openAssignModal({{ tech.id }}, '{{ tech.name }}', '{{ tech.specialty }}')">📋 Assign</button>
                                     <a href="/delete_technician/{{ tech.id }}" class="btn btn-danger" onclick="return confirm('Delete this technician?')">Delete</a>
-                                 </td>
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -398,26 +399,6 @@
         </div>
     </div>
 
-    <!-- Payment Verification Modal -->
-    <div id="verifyModal" class="modal">
-        <div class="modal-content">
-            <h3>💳 Verify Payment</h3>
-            <div id="verifyModalBody">
-                <p><strong>Payment ID:</strong> <span id="modalPaymentId"></span></p>
-                <p><strong>User:</strong> <span id="modalUsername"></span></p>
-                <p><strong>Amount:</strong> ₱<span id="modalAmount"></span></p>
-                <div class="receipt-preview" id="modalReceiptPreview"></div>
-            </div>
-            <form method="POST" action="" id="verifyForm">
-                <input type="hidden" name="payment_id" id="verifyPaymentId">
-                <div style="display: flex; gap: 10px; margin-top: 20px;">
-                    <button type="submit" name="action" value="approve" class="btn btn-success" style="flex: 1;">✅ Approve Payment</button>
-                    <button type="button" class="btn btn-primary" onclick="closeVerifyModal()" style="flex: 1;">Cancel</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
     <!-- Photo Modal -->
     <div id="photoModal" class="modal" onclick="closePhotoModal()">
         <span style="position: absolute; top: 20px; right: 40px; color: white; font-size: 40px; cursor: pointer;">&times;</span>
@@ -428,11 +409,6 @@
         let currentTechnicianId = null;
         
         function showPhoto(src) {
-            document.getElementById('photoModal').style.display = 'block';
-            document.getElementById('modalImage').src = src;
-        }
-        
-        function showReceipt(src) {
             document.getElementById('photoModal').style.display = 'block';
             document.getElementById('modalImage').src = src;
         }
@@ -487,27 +463,6 @@
         
         function closeAssignModal() {
             document.getElementById('assignModal').style.display = 'none';
-        }
-        
-        function openVerifyModal(paymentId, amount, username, receiptPhoto) {
-            document.getElementById('modalPaymentId').textContent = paymentId;
-            document.getElementById('modalUsername').textContent = username;
-            document.getElementById('modalAmount').textContent = amount;
-            document.getElementById('verifyPaymentId').value = paymentId;
-            document.getElementById('verifyForm').action = '/verify_payment/' + paymentId;
-            
-            const previewDiv = document.getElementById('modalReceiptPreview');
-            if (receiptPhoto && receiptPhoto !== 'None') {
-                previewDiv.innerHTML = '<img src="/view_receipt/' + paymentId + '" style="max-width: 100%; max-height: 300px; border-radius: 8px;">';
-            } else {
-                previewDiv.innerHTML = '<p style="color: #9ca3af;">No receipt uploaded</p>';
-            }
-            
-            document.getElementById('verifyModal').style.display = 'block';
-        }
-        
-        function closeVerifyModal() {
-            document.getElementById('verifyModal').style.display = 'none';
         }
         
         window.onclick = function(event) {
