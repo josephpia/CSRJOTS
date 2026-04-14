@@ -38,19 +38,19 @@ Before running the project, ensure you have the following installed:
 
 bash
 
-# Install Flask (Web Framework)
+* Install Flask (Web Framework)
 pip install Flask
 
-# Install QRCode (For payment QR codes)
+* Install QRCode (For payment QR codes)
 pip install qrcode
 
-# Install Pillow (For image processing)
+* Install Pillow (For image processing)
 pip install Pillow
 
-# Or install all at once
+* Or install all at once
 pip install Flask qrcode Pillow
 
-# Install Git Bash
+* Install Git Bash
 latest version of Git Bash
 
 * **The system will be live at**: http://127.0.0.1:5000/
