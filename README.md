@@ -73,7 +73,7 @@ Use the following credentials to access the system:
 ---
 
 ##  Modules:
-* **Module 1**: Customer Service Request
+* **Module 1**: **Customer Service Request**
 * Submit service requests with descriptions
 * Upload supporting photos
 * Submit Service Request
@@ -82,13 +82,13 @@ Use the following credentials to access the system:
 * Track request status (pendeng, on-going, completed)
 
 
-* **Module 2**: Technician Assignment
+* **Module 2**: **Technician Assignment**
 * View technician list and specialties
 * Assign technicians to job orders
 * Update technician status
 * Auto-unassign on completion
 
-* **Module 3**: Payment Processing
+* **Module 3**: **Payment Processing**
 * Multiple payment method support
 * QR code generation for digital payments
 * Receipt upload and verification
