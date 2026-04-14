@@ -6,10 +6,10 @@ CSR-JOTS is a comprehensive web-based system that records customer concerns, ass
 ---
 
 ## 👥 Developers (BSCS-1B)
-* **Wilma Roma**
-* **Jheane Mae Cabudlan**
-* **Joseph Pia**
-* **Cyril Jay Ibanez**
+* **Roma, Wilma C**
+* **Cabudlan, Jheane Mae M**
+* **Pia, Joseph A**
+* **Ibañez, Cyril Jay L**
 
 ---
 
