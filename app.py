@@ -9,322 +9,1161 @@ import re
 import qrcode
 from io import BytesIO
 import base64
+from dataclasses import dataclass
+from typing import List, Dict, Optional, Any
+from enum import Enum
 
 app = Flask(__name__)
 app.secret_key = "secretkey123"
 
-# Configuration for file uploads
-PROFILE_UPLOAD_FOLDER = 'static/uploads/profiles'
-SERVICE_UPLOAD_FOLDER = 'static/uploads/service_requests'
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
-MAX_FILE_SIZE = 5 * 1024 * 1024
+# ===== ENUMS AND CONSTANTS =====
+class UserRole(Enum):
+    ADMIN = "admin"
+    USER = "user"
 
-app.config['PROFILE_UPLOAD_FOLDER'] = PROFILE_UPLOAD_FOLDER
-app.config['SERVICE_UPLOAD_FOLDER'] = SERVICE_UPLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
+class RequestStatus(Enum):
+    PENDING = "pending"
+    ONGOING = "ongoing"
+    COMPLETED = "completed"
 
-# Create upload folders
-os.makedirs(PROFILE_UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(SERVICE_UPLOAD_FOLDER, exist_ok=True)
+class TechnicianStatus(Enum):
+    AVAILABLE = "available"
+    BUSY = "busy"
 
-# Default admin account
-users = {
-    "admin": {
-        "password": hashlib.sha256("1234".encode()).hexdigest(),
-        "role": "admin",
-        "firstname": "System",
-        "lastname": "Administrator",
-        "email": "admin@system.com",
-        "profile_pic": None,
-        "join_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    }
-}
+class PaymentStatus(Enum):
+    UNPAID = "unpaid"
+    FOR_VERIFICATION = "for_verification"
+    PENDING_CASH = "pending_cash"
+    PAID = "paid"
+    REJECTED = "rejected"
 
-# Technician list with specialties
-technicians = [
-    {
-        "id": 1,
-        "name": "John Santos",
-        "specialty": "Appliances Repair",
-        "keywords": ["aircon", "air conditioner", "ac", "cooling", "refrigerant", "compressor"],
-        "status": "available",
-        "rating": 4.8,
-        "contact": "09123456789",
-        "email": "john@servicehub.com",
-        "assigned_requests": []
-    },
-    {
-        "id": 2,
-        "name": "Maria Reyes",
-        "specialty": "Plumbing Repair",
-        "keywords": ["plumbing", "pipe", "leak", "faucet", "toilet", "drain", "water"],
-        "status": "available",
-        "rating": 4.9,
-        "contact": "09123456780",
-        "email": "maria@servicehub.com",
-        "assigned_requests": []
-    },
-    {
-        "id": 3,
-        "name": "Robert Gomez",
-        "specialty": "Electrical Repair",
-        "keywords": ["electrical", "wiring", "circuit", "breaker", "light", "outlet", "switch", "power"],
-        "status": "available",
-        "rating": 4.7,
-        "contact": "09123456781",
-        "email": "robert@servicehub.com",
-        "assigned_requests": []
-    },
-    {
-        "id": 4,
-        "name": "Cristina Lopez",
-        "specialty": "Electronics Repair",
-        "keywords": ["phones", "tablets", "headphones", "game consoles", "smartwatches"],
-        "status": "available",
-        "rating": 4.6,
-        "contact": "09123456782",
-        "email": "cristina@servicehub.com",
-        "assigned_requests": []
-    },
-    {
-         "id": 5,
-        "name": "Robert Martinez",
-        "specialty": "Appliances Repair",
-        "keywords": ["aircon", "air conditioner", "ac", "cooling", "refrigerant", "compressor"],
-        "status": "available",
-        "rating": 4.9,
-        "contact": "09123456789",
-        "email": "robert@servicehub.com",
-        "assigned_requests": []
-    },
-   
-]
+class PaymentMethod(Enum):
+    ONLINE = "online"
+    CASH = "cash"
 
-login_count = 0
-service_requests = []
-activities = []
-request_id_counter = 1000
+class OnlinePaymentApp(Enum):
+    GCASH = "GCash"
+    PAYMAYA = "PayMaya"
+    PAYPAL = "PayPal"
+    BANK_TRANSFER = "Bank Transfer"
 
-# ===== PAYMENT MANAGEMENT SYSTEM =====
-payments = []
-payment_id_counter = 1
-
-# Company payment accounts (SAME FOR ALL USERS)
-COMPANY_PAYMENT_ACCOUNTS = {
-    'gcash': {
-        'name': 'GCash',
-        'account_number': '0999-888-7777',
-        'account_name': 'ServiceHub PH'
-    },
-    'paymaya': {
-        'name': 'PayMaya',
-        'account_number': '0988-777-6666',
-        'account_name': 'ServiceHub'
-    },
-    'paypal': {
-        'name': 'PayPal',
-        'account_number': 'payments@servicehub.com',
-        'account_name': 'ServiceHub Solutions'
-    },
-    'bank_transfer': {
-        'name': 'Bank Transfer',
-        'account_number': '0045-1234-5678',
-        'account_name': 'ServiceHub Solutions Inc.',
-        'bank': 'BDO'
-    }
-}
-
-# Service prices
-SERVICE_PRICES = {
-    'Appliances Repair': 800,
-    'Plumbing Repair': 600,
-    'Electrical Repair': 700,
-    'Electronics Repair': 400,
+# ===== CONFIGURATION CLASS =====
+class Config:
+    """Configuration management using encapsulation"""
+    def __init__(self):
+        self._secret_key = "secretkey123"
+        self._profile_upload_folder = 'static/uploads/profiles'
+        self._service_upload_folder = 'static/uploads/service_requests'
+        self._allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+        self._max_file_size = 5 * 1024 * 1024
+        
+        # Create folders
+        os.makedirs(self._profile_upload_folder, exist_ok=True)
+        os.makedirs(self._service_upload_folder, exist_ok=True)
+        
+        # Service prices
+        self._service_prices = {
+            'Appliances Repair': 800,
+            'Plumbing Repair': 600,
+            'Electrical Repair': 700,
+            'Electronics Repair': 400,
+        }
+        
+        # Company payment accounts
+        self._company_payment_accounts = {
+            'gcash': {
+                'name': 'GCash',
+                'account_number': '0999-888-7777',
+                'account_name': 'ServiceHub PH'
+            },
+            'paymaya': {
+                'name': 'PayMaya',
+                'account_number': '0988-777-6666',
+                'account_name': 'ServiceHub'
+            },
+            'paypal': {
+                'name': 'PayPal',
+                'account_number': 'payments@servicehub.com',
+                'account_name': 'ServiceHub Solutions'
+            },
+            'bank_transfer': {
+                'name': 'Bank Transfer',
+                'account_number': '0045-1234-5678',
+                'account_name': 'ServiceHub Solutions Inc.',
+                'bank': 'BDO'
+            }
+        }
     
-}
-
-def calculate_service_amount(category):
-    """Calculate the service amount based on category"""
-    return SERVICE_PRICES.get(category, 500)
-
-def get_payment_summary():
-    """Get payment summary for admin dashboard"""
-    total_revenue = sum(p['amount'] for p in payments if p['status'] == 'paid')
-    online_revenue = sum(p['amount'] for p in payments if p['status'] == 'paid' and p['payment_method'] == 'online')
-    cash_revenue = sum(p['amount'] for p in payments if p['status'] == 'paid' and p['payment_method'] == 'cash')
-    pending_verification = sum(p['amount'] for p in payments if p['status'] == 'for_verification')
-    pending_cash_total = sum(p['amount'] for p in payments if p['status'] == 'pending_cash')
+    @property
+    def secret_key(self):
+        return self._secret_key
     
-    return {
-        'total_revenue': total_revenue,
-        'online_revenue': online_revenue,
-        'cash_revenue': cash_revenue,
-        'pending_verification': pending_verification,
-        'pending_cash_total': pending_cash_total,
-        'total_transactions': len(payments)
-    }
-
-# ===== HELPER FUNCTIONS =====
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
-
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-def save_file(file, folder):
-    ext = file.filename.rsplit('.', 1)[1].lower()
-    filename = f"{uuid.uuid4().hex}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}"
-    filepath = os.path.join(folder, filename)
-    file.save(filepath)
-    return filename
-
-def generate_request_id():
-    global request_id_counter
-    request_id_counter += 1
-    return f"SRQ-{request_id_counter}"
-
-def log_activity(username, action, details=""):
-    activities.append({
-        "id": len(activities) + 1,
-        "username": username,
-        "action": action,
-        "details": details,
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    })
-
-def detect_service_category(service_text):
-    """Detect what category the service request belongs to"""
-    service_text_lower = service_text.lower()
+    @property
+    def profile_upload_folder(self):
+        return self._profile_upload_folder
     
-    for tech in technicians:
-        for keyword in tech.get('keywords', []):
+    @property
+    def service_upload_folder(self):
+        return self._service_upload_folder
+    
+    @property
+    def allowed_extensions(self):
+        return self._allowed_extensions
+    
+    @property
+    def max_file_size(self):
+        return self._max_file_size
+    
+    @property
+    def service_prices(self):
+        return self._service_prices
+    
+    @property
+    def company_payment_accounts(self):
+        return self._company_payment_accounts
+    
+    def get_service_price(self, category: str) -> int:
+        return self._service_prices.get(category, 500)
+
+
+# ===== USER CLASS =====
+class User:
+    """User class with encapsulation"""
+    def __init__(self, username: str, password: str, firstname: str, lastname: str, 
+                 email: str, role: str = "user", middlename: str = "", age: str = "",
+                 address: str = "", birthdate: str = "", cellphone: str = ""):
+        self._username = username
+        self._password = self._hash_password(password)
+        self._firstname = firstname
+        self._lastname = lastname
+        self._middlename = middlename
+        self._age = age
+        self._address = address
+        self._birthdate = birthdate
+        self._email = email
+        self._cellphone = cellphone
+        self._role = role
+        self._profile_pic = None
+        self._join_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self._total_requests = 0
+    
+    def _hash_password(self, password: str) -> str:
+        return hashlib.sha256(password.encode()).hexdigest()
+    
+    def check_password(self, password: str) -> bool:
+        return self._password == hashlib.sha256(password.encode()).hexdigest()
+    
+    # Getters
+    @property
+    def username(self):
+        return self._username
+    
+    @property
+    def firstname(self):
+        return self._firstname
+    
+    @property
+    def lastname(self):
+        return self._lastname
+    
+    @property
+    def middlename(self):
+        return self._middlename
+    
+    @property
+    def age(self):
+        return self._age
+    
+    @property
+    def address(self):
+        return self._address
+    
+    @property
+    def birthdate(self):
+        return self._birthdate
+    
+    @property
+    def email(self):
+        return self._email
+    
+    @property
+    def cellphone(self):
+        return self._cellphone
+    
+    @property
+    def role(self):
+        return self._role
+    
+    @property
+    def profile_pic(self):
+        return self._profile_pic
+    
+    @property
+    def join_date(self):
+        return self._join_date
+    
+    @property
+    def total_requests(self):
+        return self._total_requests
+    
+    # Setters
+    @profile_pic.setter
+    def profile_pic(self, value):
+        self._profile_pic = value
+    
+    def increment_requests(self):
+        self._total_requests += 1
+    
+    def to_dict(self) -> Dict:
+        return {
+            "firstname": self._firstname,
+            "middlename": self._middlename,
+            "lastname": self._lastname,
+            "age": self._age,
+            "address": self._address,
+            "birthdate": self._birthdate,
+            "email": self._email,
+            "cellphone": self._cellphone,
+            "password": self._password,
+            "role": self._role,
+            "profile_pic": self._profile_pic,
+            "join_date": self._join_date,
+            "total_requests": self._total_requests
+        }
+
+
+# ===== TECHNICIAN CLASS =====
+class Technician:
+    """Technician class with encapsulation"""
+    def __init__(self, id: int, name: str, specialty: str, contact: str, email: str, 
+                 keywords: List[str] = None, rating: float = 5.0):
+        self._id = id
+        self._name = name
+        self._specialty = specialty
+        self._contact = contact
+        self._email = email
+        self._keywords = keywords or []
+        self._status = TechnicianStatus.AVAILABLE
+        self._rating = rating
+        self._assigned_requests = []
+    
+    @property
+    def id(self):
+        return self._id
+    
+    @property
+    def name(self):
+        return self._name
+    
+    @property
+    def specialty(self):
+        return self._specialty
+    
+    @property
+    def contact(self):
+        return self._contact
+    
+    @property
+    def email(self):
+        return self._email
+    
+    @property
+    def keywords(self):
+        return self._keywords
+    
+    @property
+    def status(self):
+        return self._status
+    
+    @status.setter
+    def status(self, value):
+        self._status = value
+    
+    @property
+    def rating(self):
+        return self._rating
+    
+    @property
+    def assigned_requests(self):
+        return self._assigned_requests
+    
+    def can_handle_service(self, service_text: str) -> bool:
+        """Check if technician can handle this service"""
+        service_text_lower = service_text.lower()
+        for keyword in self._keywords:
             if keyword in service_text_lower:
-                return tech['specialty']
+                return True
+        return False
     
-    return "General Repair"
+    def assign_request(self, request_id: str):
+        self._assigned_requests.append(request_id)
+        if len(self._assigned_requests) >= 1:
+            self._status = TechnicianStatus.BUSY
+    
+    def unassign_request(self, request_id: str):
+        if request_id in self._assigned_requests:
+            self._assigned_requests.remove(request_id)
+        if len(self._assigned_requests) == 0:
+            self._status = TechnicianStatus.AVAILABLE
+    
+    def to_dict(self) -> Dict:
+        return {
+            "id": self._id,
+            "name": self._name,
+            "specialty": self._specialty,
+            "keywords": self._keywords,
+            "status": self._status.value,
+            "rating": self._rating,
+            "contact": self._contact,
+            "email": self._email,
+            "assigned_requests": self._assigned_requests
+        }
 
-def get_available_technicians_for_service(service_text):
-    """Get only technicians who can fix the specific service"""
-    service_text_lower = service_text.lower()
-    available_techs = []
+
+# ===== SERVICE REQUEST CLASS =====
+class ServiceRequest:
+    """Service Request class with encapsulation"""
+    def __init__(self, request_id: str, username: str, service: str, category: str, 
+                 service_photo: str = None):
+        self._id = request_id
+        self._username = username
+        self._service = service
+        self._category = category
+        self._status = RequestStatus.PENDING
+        self._date_requested = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self._service_photo = service_photo
+        self._has_photo = service_photo is not None
+        self._admin_notes = ""
+        self._last_update = self._date_requested
+        self._technician_id = None
+        self._technician_name = None
+        self._technician_specialty = None
+        self._technician_assigned_date = None
+        self._payment_status = PaymentStatus.UNPAID
+        self._payment_method = None
+        self._payment_amount = None
+        self._payment_id = None
+        self._reference_number = None
+        self._transaction_id = None
     
-    for tech in technicians:
-        if tech['status'] != 'available':
-            continue
-            
-        for keyword in tech.get('keywords', []):
-            if keyword in service_text_lower:
+    @property
+    def id(self):
+        return self._id
+    
+    @property
+    def username(self):
+        return self._username
+    
+    @property
+    def service(self):
+        return self._service
+    
+    @service.setter
+    def service(self, value):
+        self._service = value
+        self._last_update = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    @property
+    def category(self):
+        return self._category
+    
+    @property
+    def status(self):
+        return self._status
+    
+    @status.setter
+    def status(self, value):
+        self._status = value
+        self._last_update = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    @property
+    def date_requested(self):
+        return self._date_requested
+    
+    @property
+    def service_photo(self):
+        return self._service_photo
+    
+    @property
+    def has_photo(self):
+        return self._has_photo
+    
+    @property
+    def admin_notes(self):
+        return self._admin_notes
+    
+    @admin_notes.setter
+    def admin_notes(self, value):
+        self._admin_notes = value
+    
+    @property
+    def last_update(self):
+        return self._last_update
+    
+    @property
+    def technician_id(self):
+        return self._technician_id
+    
+    @technician_id.setter
+    def technician_id(self, value):
+        self._technician_id = value
+    
+    @property
+    def technician_name(self):
+        return self._technician_name
+    
+    @technician_name.setter
+    def technician_name(self, value):
+        self._technician_name = value
+    
+    @property
+    def technician_specialty(self):
+        return self._technician_specialty
+    
+    @technician_specialty.setter
+    def technician_specialty(self, value):
+        self._technician_specialty = value
+    
+    @property
+    def technician_assigned_date(self):
+        return self._technician_assigned_date
+    
+    @technician_assigned_date.setter
+    def technician_assigned_date(self, value):
+        self._technician_assigned_date = value
+    
+    @property
+    def payment_status(self):
+        return self._payment_status
+    
+    @payment_status.setter
+    def payment_status(self, value):
+        self._payment_status = value
+    
+    @property
+    def payment_method(self):
+        return self._payment_method
+    
+    @payment_method.setter
+    def payment_method(self, value):
+        self._payment_method = value
+    
+    @property
+    def payment_amount(self):
+        return self._payment_amount
+    
+    @payment_amount.setter
+    def payment_amount(self, value):
+        self._payment_amount = value
+    
+    @property
+    def payment_id(self):
+        return self._payment_id
+    
+    @payment_id.setter
+    def payment_id(self, value):
+        self._payment_id = value
+    
+    @property
+    def reference_number(self):
+        return self._reference_number
+    
+    @reference_number.setter
+    def reference_number(self, value):
+        self._reference_number = value
+    
+    @property
+    def transaction_id(self):
+        return self._transaction_id
+    
+    @transaction_id.setter
+    def transaction_id(self, value):
+        self._transaction_id = value
+    
+    def assign_technician(self, technician: Technician):
+        """Assign technician to this request"""
+        self._technician_id = technician.id
+        self._technician_name = technician.name
+        self._technician_specialty = technician.specialty
+        self._technician_assigned_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self._status = RequestStatus.ONGOING
+    
+    def unassign_technician(self):
+        """Remove technician assignment"""
+        self._technician_id = None
+        self._technician_name = None
+        self._technician_specialty = None
+        self._technician_assigned_date = None
+    
+    def set_payment_info(self, payment_method: str, amount: int, payment_id: str, 
+                        reference_number: str = None, transaction_id: str = None):
+        """Set payment information"""
+        self._payment_method = payment_method
+        self._payment_amount = amount
+        self._payment_id = payment_id
+        self._reference_number = reference_number
+        self._transaction_id = transaction_id
+        
+        if payment_method == 'online':
+            self._payment_status = PaymentStatus.FOR_VERIFICATION
+        else:
+            self._payment_status = PaymentStatus.PENDING_CASH
+    
+    def to_dict(self) -> Dict:
+        return {
+            "id": self._id,
+            "username": self._username,
+            "service": self._service,
+            "category": self._category,
+            "status": self._status.value,
+            "date_requested": self._date_requested,
+            "service_photo": self._service_photo,
+            "has_photo": self._has_photo,
+            "admin_notes": self._admin_notes,
+            "last_update": self._last_update,
+            "technician_id": self._technician_id,
+            "technician_name": self._technician_name,
+            "technician_specialty": self._technician_specialty,
+            "technician_assigned_date": self._technician_assigned_date,
+            "payment_status": self._payment_status.value if self._payment_status else "unpaid",
+            "payment_method": self._payment_method,
+            "payment_amount": self._payment_amount,
+            "payment_id": self._payment_id,
+            "reference_number": self._reference_number,
+            "transaction_id": self._transaction_id
+        }
+
+
+# ===== PAYMENT CLASS =====
+class Payment:
+    """Payment class with encapsulation"""
+    def __init__(self, payment_id: str, request_id: str, username: str, amount: int, 
+                 payment_method: str, reference_number: str = None, online_app: str = None):
+        self._payment_id = payment_id
+        self._request_id = request_id
+        self._username = username
+        self._amount = amount
+        self._payment_method = payment_method
+        self._online_app = online_app
+        self._reference_number = reference_number
+        self._status = PaymentStatus.FOR_VERIFICATION if payment_method == 'online' else PaymentStatus.PENDING_CASH
+        self._payment_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self._transaction_id = f"TXN-{username[:3].upper()}{payment_id}{datetime.now().strftime('%m%d%H%M')}"
+        self._verified_date = None
+        self._verified_by = None
+        self._rejected_date = None
+        self._rejected_by = None
+        self._cash_confirmed_date = None
+        self._confirmed_by = None
+    
+    @property
+    def payment_id(self):
+        return self._payment_id
+    
+    @property
+    def request_id(self):
+        return self._request_id
+    
+    @property
+    def username(self):
+        return self._username
+    
+    @property
+    def amount(self):
+        return self._amount
+    
+    @property
+    def payment_method(self):
+        return self._payment_method
+    
+    @property
+    def online_app(self):
+        return self._online_app
+    
+    @property
+    def reference_number(self):
+        return self._reference_number
+    
+    @property
+    def status(self):
+        return self._status
+    
+    @status.setter
+    def status(self, value):
+        self._status = value
+    
+    @property
+    def payment_date(self):
+        return self._payment_date
+    
+    @property
+    def transaction_id(self):
+        return self._transaction_id
+    
+    @property
+    def verified_date(self):
+        return self._verified_date
+    
+    @property
+    def verified_by(self):
+        return self._verified_by
+    
+    @property
+    def rejected_date(self):
+        return self._rejected_date
+    
+    @property
+    def rejected_by(self):
+        return self._rejected_by
+    
+    @property
+    def cash_confirmed_date(self):
+        return self._cash_confirmed_date
+    
+    def approve(self, verified_by: str):
+        """Approve payment"""
+        self._status = PaymentStatus.PAID
+        self._verified_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self._verified_by = verified_by
+    
+    def reject(self, rejected_by: str):
+        """Reject payment"""
+        self._status = PaymentStatus.REJECTED
+        self._rejected_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self._rejected_by = rejected_by
+    
+    def confirm_cash(self, confirmed_by: str):
+        """Confirm cash payment"""
+        self._status = PaymentStatus.PAID
+        self._cash_confirmed_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self._confirmed_by = confirmed_by
+    
+    def to_dict(self) -> Dict:
+        return {
+            "payment_id": self._payment_id,
+            "request_id": self._request_id,
+            "username": self._username,
+            "amount": self._amount,
+            "payment_method": self._payment_method,
+            "online_app": self._online_app,
+            "reference_number": self._reference_number,
+            "status": self._status.value if self._status else "pending",
+            "payment_date": self._payment_date,
+            "transaction_id": self._transaction_id,
+            "verified_date": self._verified_date,
+            "verified_by": self._verified_by,
+            "rejected_date": self._rejected_date,
+            "rejected_by": self._rejected_by,
+            "cash_confirmed_date": self._cash_confirmed_date,
+            "confirmed_by": self._confirmed_by
+        }
+
+
+# ===== ACTIVITY LOG CLASS =====
+class ActivityLog:
+    """Activity Log class"""
+    def __init__(self, activity_id: int, username: str, action: str, details: str = ""):
+        self._id = activity_id
+        self._username = username
+        self._action = action
+        self._details = details
+        self._timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    @property
+    def id(self):
+        return self._id
+    
+    @property
+    def username(self):
+        return self._username
+    
+    @property
+    def action(self):
+        return self._action
+    
+    @property
+    def details(self):
+        return self._details
+    
+    @property
+    def timestamp(self):
+        return self._timestamp
+    
+    def to_dict(self) -> Dict:
+        return {
+            "id": self._id,
+            "username": self._username,
+            "action": self._action,
+            "details": self._details,
+            "timestamp": self._timestamp
+        }
+
+
+# ===== FILE MANAGER CLASS =====
+class FileManager:
+    """File management class"""
+    def __init__(self, config: Config):
+        self._config = config
+    
+    def allowed_file(self, filename: str) -> bool:
+        return '.' in filename and filename.rsplit('.', 1)[1].lower() in self._config.allowed_extensions
+    
+    def save_file(self, file, folder: str) -> str:
+        ext = file.filename.rsplit('.', 1)[1].lower()
+        filename = f"{uuid.uuid4().hex}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}"
+        filepath = os.path.join(folder, filename)
+        file.save(filepath)
+        return filename
+    
+    def delete_file(self, filepath: str):
+        if os.path.exists(filepath):
+            os.remove(filepath)
+
+
+# ===== QR CODE GENERATOR CLASS =====
+class QRCodeGenerator:
+    """QR Code generation class"""
+    @staticmethod
+    def generate_payment_qr(payment_method: str, amount: int, request_id: str, username: str) -> Dict:
+        """Generate QR code for payment"""
+        payment_data = QRCodeGenerator._create_payment_data(payment_method, amount, request_id, username)
+        
+        qr = qrcode.QRCode(version=1, box_size=10, border=4)
+        qr.add_data(payment_data)
+        qr.make(fit=True)
+        
+        img = qr.make_image(fill_color="black", back_color="white")
+        
+        buffered = BytesIO()
+        img.save(buffered, format="PNG")
+        img_str = base64.b64encode(buffered.getvalue()).decode()
+        
+        return {'qr_code': img_str, 'payment_data': payment_data}
+    
+    @staticmethod
+    def _create_payment_data(payment_method: str, amount: int, request_id: str, username: str) -> str:
+        """Create payment data string"""
+        current_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        templates = {
+            'GCash': f"""GCash Payment
+Amount: ₱{amount}
+Account: 0999-888-7777
+Account Name: ServiceHub PH
+Reference: {request_id}
+Customer: {username}
+Date: {current_date}""",
+            'PayMaya': f"""PayMaya Payment
+Amount: ₱{amount}
+Account: 0988-777-6666
+Account Name: ServiceHub
+Reference: {request_id}
+Customer: {username}
+Date: {current_date}""",
+            'PayPal': f"""PayPal Payment
+Amount: ₱{amount}
+Email: payments@servicehub.com
+Account Name: ServiceHub Solutions
+Reference: {request_id}
+Customer: {username}
+Date: {current_date}""",
+            'Bank Transfer': f"""Bank Transfer Payment
+Amount: ₱{amount}
+Bank: BDO
+Account: 0045-1234-5678
+Account Name: ServiceHub Solutions Inc.
+Reference: {request_id}
+Customer: {username}
+Date: {current_date}"""
+        }
+        
+        return templates.get(payment_method, f"Payment Amount: ₱{amount}\nReference: {request_id}\nCustomer: {username}")
+
+
+# ===== SERVICE HUB MANAGER CLASS (Main Application Logic) =====
+class ServiceHubManager:
+    """Main application manager class"""
+    def __init__(self, config: Config):
+        self._config = config
+        self._users: Dict[str, User] = {}
+        self._technicians: List[Technician] = []
+        self._service_requests: List[ServiceRequest] = []
+        self._payments: List[Payment] = []
+        self._activities: List[ActivityLog] = []
+        self._file_manager = FileManager(config)
+        self._qr_generator = QRCodeGenerator()
+        self._request_id_counter = 1000
+        self._payment_id_counter = 1
+        self._activity_id_counter = 1
+        self._login_count = 0
+        
+        # Initialize default admin
+        self._init_default_admin()
+        self._init_default_technicians()
+    
+    def _init_default_admin(self):
+        """Initialize default admin user"""
+        admin = User("admin", "1234", "System", "Administrator", "admin@system.com", "admin")
+        self._users["admin"] = admin
+    
+    def _init_default_technicians(self):
+        """Initialize default technicians"""
+        default_techs = [
+            (1, "John Santos", "Appliances Repair", "09123456789", "john@servicehub.com", 
+             ["aircon", "air conditioner", "ac", "cooling", "refrigerant", "compressor"], 4.8),
+            (2, "Maria Reyes", "Plumbing Repair", "09123456780", "maria@servicehub.com",
+             ["plumbing", "pipe", "leak", "faucet", "toilet", "drain", "water"], 4.9),
+            (3, "Robert Gomez", "Electrical Repair", "09123456781", "robert@servicehub.com",
+             ["electrical", "wiring", "circuit", "breaker", "light", "outlet", "switch", "power"], 4.7),
+            (4, "Cristina Lopez", "Electronics Repair", "09123456782", "cristina@servicehub.com",
+             ["phones", "tablets", "headphones", "game consoles", "smartwatches"], 4.6),
+            (5, "Robert Martinez", "Appliances Repair", "09123456789", "robert@servicehub.com",
+             ["aircon", "air conditioner", "ac", "cooling", "refrigerant", "compressor"], 4.9)
+        ]
+        
+        for tech_data in default_techs:
+            technician = Technician(*tech_data)
+            self._technicians.append(technician)
+    
+    def _generate_request_id(self) -> str:
+        """Generate unique request ID"""
+        self._request_id_counter += 1
+        return f"SRQ-{self._request_id_counter}"
+    
+    def _generate_payment_id(self) -> str:
+        """Generate unique payment ID"""
+        payment_id = f"PAY-{self._payment_id_counter}"
+        self._payment_id_counter += 1
+        return payment_id
+    
+    def log_activity(self, username: str, action: str, details: str = ""):
+        """Log user activity"""
+        activity = ActivityLog(self._activity_id_counter, username, action, details)
+        self._activities.append(activity)
+        self._activity_id_counter += 1
+    
+    def create_user(self, username: str, password: str, firstname: str, lastname: str, 
+                   email: str, **kwargs) -> bool:
+        """Create a new user"""
+        if username in self._users:
+            return False
+        
+        user = User(username, password, firstname, lastname, email, "user", **kwargs)
+        self._users[username] = user
+        self.log_activity(username, "Account Created", "New user registered")
+        return True
+    
+    def authenticate_user(self, username: str, password: str) -> Optional[User]:
+        """Authenticate user login"""
+        if username not in self._users:
+            return None
+        
+        user = self._users[username]
+        if user.check_password(password):
+            self._login_count += 1
+            self.log_activity(username, "Login", "User logged in successfully")
+            return user
+        
+        return None
+    
+    def detect_service_category(self, service_text: str) -> str:
+        """Detect service category from text"""
+        service_text_lower = service_text.lower()
+        
+        for technician in self._technicians:
+            if technician.can_handle_service(service_text):
+                return technician.specialty
+        
+        return "General Repair"
+    
+    def get_available_technicians_for_service(self, service_text: str) -> List[Technician]:
+        """Get available technicians that can handle the service"""
+        available_techs = []
+        
+        for tech in self._technicians:
+            if tech.status == TechnicianStatus.AVAILABLE and tech.can_handle_service(service_text):
                 available_techs.append(tech)
+        
+        return available_techs
+    
+    def create_service_request(self, username: str, service: str, service_photo: str = None) -> Optional[ServiceRequest]:
+        """Create a new service request"""
+        if username not in self._users:
+            return None
+        
+        category = self.detect_service_category(service)
+        request_id = self._generate_request_id()
+        
+        service_request = ServiceRequest(request_id, username, service, category, service_photo)
+        self._service_requests.append(service_request)
+        
+        # Increment user's total requests
+        self._users[username].increment_requests()
+        
+        self.log_activity(username, "Service Request", f"{category}: {service[:50]}")
+        return service_request
+    
+    def assign_technician_to_request(self, request_id: str, technician_id: int) -> bool:
+        """Assign a technician to a service request"""
+        # Find the request
+        service_request = None
+        for req in self._service_requests:
+            if req.id == request_id:
+                service_request = req
                 break
+        
+        if not service_request:
+            return False
+        
+        # Find the technician
+        technician = None
+        for tech in self._technicians:
+            if tech.id == technician_id:
+                technician = tech
+                break
+        
+        if not technician:
+            return False
+        
+        # Assign technician
+        service_request.assign_technician(technician)
+        technician.assign_request(request_id)
+        
+        self.log_activity(session.get('username'), "Assigned Technician", 
+                         f"Request {request_id} -> {technician.name} ({technician.specialty})")
+        return True
     
-    if not available_techs:
-        for tech in technicians:
-            if tech['status'] == 'available' and tech['specialty'] == 'General Repair':
-                available_techs.append(tech)
+    def unassign_technician_from_request(self, request_id: str) -> bool:
+        """Remove technician assignment from request"""
+        service_request = None
+        for req in self._service_requests:
+            if req.id == request_id:
+                service_request = req
+                break
+        
+        if not service_request or not service_request.technician_id:
+            return False
+        
+        technician = None
+        for tech in self._technicians:
+            if tech.id == service_request.technician_id:
+                technician = tech
+                break
+        
+        if technician:
+            technician.unassign_request(request_id)
+        
+        service_request.unassign_technician()
+        self.log_activity(session.get('username'), "Unassigned Technician", f"Request {request_id}")
+        return True
     
-    return available_techs
-
-def update_technician_status(technician_id):
-    """Update technician status based on assigned requests count"""
-    for tech in technicians:
-        if tech['id'] == technician_id:
-            if len(tech['assigned_requests']) >= 1:
-                tech['status'] = 'busy'
-            else:
-                tech['status'] = 'available'
-            log_activity(session.get('username'), "Technician Status Updated", f"{tech['name']} -> {tech['status']}")
-            break
-
-def assign_technician_to_request(request_id, technician_id):
-    """Assign a technician to a service request"""
-    for req in service_requests:
-        if req['id'] == request_id:
-            for tech in technicians:
-                if tech['id'] == int(technician_id):
-                    req['technician_id'] = tech['id']
-                    req['technician_name'] = tech['name']
-                    req['technician_specialty'] = tech['specialty']
-                    req['technician_assigned_date'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    req['status'] = 'ongoing'
-                    
-                    tech['assigned_requests'].append(request_id)
-                    
-                    # Update technician status to busy
-                    update_technician_status(tech['id'])
-                    
-                    log_activity(session.get('username'), "Assigned Technician", f"Request {request_id} -> {tech['name']} ({tech['specialty']})")
+    def add_technician(self, name: str, specialty: str, contact: str, email: str, keywords: str = "") -> Technician:
+        """Add a new technician"""
+        new_id = max([t.id for t in self._technicians]) + 1 if self._technicians else 1
+        
+        default_keywords = {
+            "Aircon Repair": ["aircon", "air conditioner", "ac", "cooling", "refrigerant", "compressor"],
+            "Plumbing": ["plumbing", "pipe", "leak", "faucet", "toilet", "drain", "water"],
+            "Electrical": ["electrical", "wiring", "circuit", "breaker", "light", "outlet", "switch", "power"],
+            "Appliance Repair": ["appliance", "refrigerator", "washing machine", "dryer", "oven", "stove", "microwave"],
+            "General Repair": ["repair", "fix", "maintenance", "general"]
+        }
+        
+        tech_keywords = default_keywords.get(specialty, ["repair", "fix"])
+        if keywords:
+            tech_keywords.extend([k.strip() for k in keywords.split(',')])
+        
+        technician = Technician(new_id, name, specialty, contact, email, tech_keywords)
+        self._technicians.append(technician)
+        self.log_activity(session.get('username'), "Added Technician", f"Added {name} ({specialty})")
+        return technician
+    
+    def delete_technician(self, technician_id: int) -> bool:
+        """Delete a technician"""
+        for tech in self._technicians:
+            if tech.id == technician_id:
+                # Unassign from all requests
+                for request_id in tech.assigned_requests:
+                    for req in self._service_requests:
+                        if req.id == request_id:
+                            req.unassign_technician()
+                            break
+                
+                self._technicians = [t for t in self._technicians if t.id != technician_id]
+                self.log_activity(session.get('username'), "Deleted Technician", f"Deleted ID: {technician_id}")
+                return True
+        return False
+    
+    def create_payment(self, request_id: str, username: str, payment_method: str, 
+                      amount: int, reference_number: str = None, online_app: str = None) -> Optional[Payment]:
+        """Create a payment record"""
+        # Find service request
+        service_request = None
+        for req in self._service_requests:
+            if req.id == request_id and req.username == username:
+                service_request = req
+                break
+        
+        if not service_request:
+            return None
+        
+        payment_id = self._generate_payment_id()
+        payment = Payment(payment_id, request_id, username, amount, payment_method, 
+                         reference_number, online_app)
+        
+        self._payments.append(payment)
+        
+        # Update service request with payment info
+        service_request.set_payment_info(payment_method, amount, payment_id, reference_number, payment.transaction_id)
+        
+        self.log_activity(username, "Payment Submitted", f"Request {request_id} - {payment_method}")
+        return payment
+    
+    def verify_payment(self, payment_id: str, verified_by: str, action: str = 'approve') -> bool:
+        """Verify or reject a payment"""
+        for payment in self._payments:
+            if payment.payment_id == payment_id:
+                if action == 'approve':
+                    payment.approve(verified_by)
+                    # Update service request
+                    for req in self._service_requests:
+                        if req.id == payment.request_id:
+                            req.payment_status = PaymentStatus.PAID
+                            break
+                    self.log_activity(verified_by, "Payment Verified", f"Payment {payment_id} approved")
+                else:
+                    payment.reject(verified_by)
+                    self.log_activity(verified_by, "Payment Rejected", f"Payment {payment_id} rejected")
+                return True
+        return False
+    
+    def confirm_cash_payment(self, request_id: str, confirmed_by: str) -> bool:
+        """Confirm cash payment"""
+        for req in self._service_requests:
+            if req.id == request_id:
+                if req.payment_status == PaymentStatus.PENDING_CASH:
+                    req.payment_status = PaymentStatus.PAID
+                    # Update payment record
+                    for payment in self._payments:
+                        if payment.request_id == request_id:
+                            payment.confirm_cash(confirmed_by)
+                            break
+                    self.log_activity(confirmed_by, "Cash Payment Confirmed", f"Request {request_id}")
                     return True
-    return False
-
-def unassign_technician_from_request(request_id):
-    """Remove technician assignment from a request"""
-    for req in service_requests:
-        if req['id'] == request_id and req.get('technician_id'):
-            for tech in technicians:
-                if tech['id'] == req['technician_id']:
-                    if request_id in tech['assigned_requests']:
-                        tech['assigned_requests'].remove(request_id)
-                    
-                    # Update technician status (will become available if no more requests)
-                    update_technician_status(tech['id'])
-                    break
-            req['technician_id'] = None
-            req['technician_name'] = None
-            req['technician_specialty'] = None
-            req['technician_assigned_date'] = None
-            log_activity(session.get('username'), "Unassigned Technician", f"Request {request_id}")
-            return True
-    return False
-
-def add_new_technician(name, specialty, contact, email, keywords=""):
-    """Add a new technician"""
-    new_id = max([t['id'] for t in technicians]) + 1 if technicians else 1
+        return False
     
-    default_keywords = {
-        "Aircon Repair": ["aircon", "air conditioner", "ac", "cooling", "refrigerant", "compressor"],
-        "Plumbing": ["plumbing", "pipe", "leak", "faucet", "toilet", "drain", "water"],
-        "Electrical": ["electrical", "wiring", "circuit", "breaker", "light", "outlet", "switch", "power"],
-        "Appliance Repair": ["appliance", "refrigerator", "washing machine", "dryer", "oven", "stove", "microwave"],
-        "General Repair": ["repair", "fix", "maintenance", "general"]
-    }
+    def delete_user(self, username: str) -> bool:
+        """Delete a user"""
+        if username == 'admin' or username not in self._users:
+            return False
+        
+        # Delete user's profile picture
+        user = self._users[username]
+        if user.profile_pic:
+            photo_path = os.path.join(self._config.profile_upload_folder, user.profile_pic)
+            self._file_manager.delete_file(photo_path)
+        
+        # Delete user's service requests
+        for req in self._service_requests[:]:
+            if req.username == username and req.service_photo:
+                photo_path = os.path.join(self._config.service_upload_folder, req.service_photo)
+                self._file_manager.delete_file(photo_path)
+        
+        self._service_requests = [req for req in self._service_requests if req.username != username]
+        del self._users[username]
+        
+        self.log_activity(session.get('username'), "Deleted User", username)
+        return True
     
-    tech_keywords = default_keywords.get(specialty, ["repair", "fix"])
-    if keywords:
-        tech_keywords.extend([k.strip() for k in keywords.split(',')])
+    def delete_service_request(self, request_id: str) -> bool:
+        """Delete a service request"""
+        for req in self._service_requests:
+            if req.id == request_id:
+                if req.service_photo:
+                    photo_path = os.path.join(self._config.service_upload_folder, req.service_photo)
+                    self._file_manager.delete_file(photo_path)
+                break
+        
+        self._service_requests = [req for req in self._service_requests if req.id != request_id]
+        self.log_activity(session.get('username'), "Deleted Request", request_id)
+        return True
     
-    new_tech = {
-        "id": new_id,
-        "name": name,
-        "specialty": specialty,
-        "keywords": tech_keywords,
-        "status": "available",
-        "rating": 5.0,
-        "contact": contact,
-        "email": email,
-        "assigned_requests": []
-    }
-    technicians.append(new_tech)
-    log_activity(session.get('username'), "Added Technician", f"Added {name} ({specialty})")
-    return new_tech
+    def get_payment_summary(self) -> Dict:
+        """Get payment summary for admin dashboard"""
+        total_revenue = sum(p.amount for p in self._payments if p.status == PaymentStatus.PAID)
+        online_revenue = sum(p.amount for p in self._payments 
+                           if p.status == PaymentStatus.PAID and p.payment_method == 'online')
+        cash_revenue = sum(p.amount for p in self._payments 
+                          if p.status == PaymentStatus.PAID and p.payment_method == 'cash')
+        pending_verification = sum(p.amount for p in self._payments 
+                                  if p.status == PaymentStatus.FOR_VERIFICATION)
+        pending_cash_total = sum(p.amount for p in self._payments 
+                                if p.status == PaymentStatus.PENDING_CASH)
+        
+        return {
+            'total_revenue': total_revenue,
+            'online_revenue': online_revenue,
+            'cash_revenue': cash_revenue,
+            'pending_verification': pending_verification,
+            'pending_cash_total': pending_cash_total,
+            'total_transactions': len(self._payments)
+        }
+    
+    def get_user_requests(self, username: str) -> List[Dict]:
+        """Get requests for a specific user"""
+        return [req.to_dict() for req in self._service_requests if req.username == username]
+    
+    def get_all_requests(self) -> List[Dict]:
+        """Get all service requests"""
+        return [req.to_dict() for req in self._service_requests]
+    
+    def get_all_technicians(self) -> List[Dict]:
+        """Get all technicians"""
+        return [tech.to_dict() for tech in self._technicians]
+    
+    def get_all_users(self) -> Dict:
+        """Get all users (excluding admin for certain views)"""
+        return {username: user.to_dict() for username, user in self._users.items()}
+    
+    def get_activities(self, limit: int = 10) -> List[Dict]:
+        """Get recent activities"""
+        return [activity.to_dict() for activity in self._activities[-limit:]]
+    
+    def get_technician_by_id(self, technician_id: int) -> Optional[Technician]:
+        """Get technician by ID"""
+        for tech in self._technicians:
+            if tech.id == technician_id:
+                return tech
+        return None
+    
+    def get_request_by_id(self, request_id: str) -> Optional[ServiceRequest]:
+        """Get service request by ID"""
+        for req in self._service_requests:
+            if req.id == request_id:
+                return req
+        return None
+    
+    @property
+    def login_count(self) -> int:
+        return self._login_count
+    
+    @property
+    def service_prices(self):
+        return self._config.service_prices
+    
+    def calculate_service_amount(self, category: str) -> int:
+        """Calculate service amount based on category"""
+        return self._config.get_service_price(category)
 
-def delete_technician(technician_id):
-    """Delete a technician"""
-    global technicians
-    for tech in technicians:
-        if tech['id'] == technician_id:
-            for req_id in tech['assigned_requests']:
-                for req in service_requests:
-                    if req['id'] == req_id:
-                        req['technician_id'] = None
-                        req['technician_name'] = None
-                        req['technician_specialty'] = None
-                        req['technician_assigned_date'] = None
-                        req['status'] = 'pending'
-                        break
-            technicians = [t for t in technicians if t['id'] != technician_id]
-            log_activity(session.get('username'), "Deleted Technician", f"Deleted ID: {technician_id}")
-            return True
-    return False
+
+# ===== FLASK APPLICATION SETUP =====
+config = Config()
+manager = ServiceHubManager(config)
+
+# Configure Flask app
+app.config['PROFILE_UPLOAD_FOLDER'] = config.profile_upload_folder
+app.config['SERVICE_UPLOAD_FOLDER'] = config.service_upload_folder
+app.config['MAX_CONTENT_LENGTH'] = config.max_file_size
 
 # ===== AUTHENTICATION DECORATORS =====
 def admin_required(f):
@@ -358,48 +1197,45 @@ def home():
         return redirect(url_for('user_dashboard'))
     return redirect(url_for('login'))
 
-# LOGIN
+# ===== LOGIN ROUTE =====
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    global login_count
-    message = ""
-
     if session.get('username'):
         if session.get('role') == 'admin':
             return redirect(url_for('admin_dashboard'))
         return redirect(url_for('user_dashboard'))
-
+    
+    message = ""
+    
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
-
+        
         if not username or not password:
             message = "Please enter both username and password"
-        elif username not in users:
-            message = "User does not have an account"
-        elif users[username]["password"] == hash_password(password):
-            session['username'] = username
-            session['role'] = users[username]["role"]
-            login_count += 1
-            log_activity(username, "Login", "User logged in successfully")
-
-            if users[username]["role"] == "admin":
-                return redirect(url_for('admin_dashboard'))
-            else:
-                return redirect(url_for('user_dashboard'))
         else:
-            message = "Wrong password"
-
+            user = manager.authenticate_user(username, password)
+            if user:
+                session['username'] = user.username
+                session['role'] = user.role
+                
+                if user.role == "admin":
+                    return redirect(url_for('admin_dashboard'))
+                else:
+                    return redirect(url_for('user_dashboard'))
+            else:
+                message = "Invalid username or password"
+    
     return render_template('login.html', message=message)
 
-# SIGNUP
+# ===== SIGNUP ROUTE =====
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if session.get('username'):
         return redirect(url_for('home'))
-        
+    
     message = ""
-
+    
     if request.method == 'POST':
         firstname = request.form.get('firstname', '').strip()
         middlename = request.form.get('middlename', '').strip()
@@ -412,10 +1248,8 @@ def signup():
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '').strip()
         confirm_password = request.form.get('confirm_password', '').strip()
-
-        if username in users:
-            message = "Username already exists"
-        elif len(username) < 3:
+        
+        if len(username) < 3:
             message = "Username must be at least 3 characters"
         elif len(password) < 4:
             message = "Password must be at least 4 characters"
@@ -424,27 +1258,16 @@ def signup():
         elif not all([firstname, lastname, age, address, birthdate, email, cellphone]):
             message = "All fields are required"
         else:
-            users[username] = {
-                "firstname": firstname,
-                "middlename": middlename,
-                "lastname": lastname,
-                "age": age,
-                "address": address,
-                "birthdate": birthdate,
-                "email": email,
-                "cellphone": cellphone,
-                "password": hash_password(password),
-                "role": "user",
-                "profile_pic": None,
-                "join_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "total_requests": 0
-            }
-            log_activity(username, "Account Created", "New user registered")
-            return redirect(url_for('login'))
-
+            if manager.create_user(username, password, firstname, lastname, email,
+                                  middlename=middlename, age=age, address=address,
+                                  birthdate=birthdate, cellphone=cellphone):
+                return redirect(url_for('login'))
+            else:
+                message = "Username already exists"
+    
     return render_template('signup.html', message=message)
 
-# USER DASHBOARD
+# ===== USER DASHBOARD ROUTE =====
 @app.route('/userdashboard', methods=['GET', 'POST'])
 @login_required
 def user_dashboard():
@@ -453,431 +1276,243 @@ def user_dashboard():
     
     profile_message = ""
     service_message = ""
-    service_photo = None
     
     # Handle Profile Photo Upload
     if request.method == 'POST' and 'profile_photo' in request.files:
         photo = request.files['profile_photo']
         if photo.filename == '':
             profile_message = "No file selected"
-        elif not allowed_file(photo.filename):
-            profile_message = "Invalid file type"
         else:
-            if users[session['username']].get('profile_pic'):
-                old_photo_path = os.path.join(app.config['PROFILE_UPLOAD_FOLDER'], users[session['username']]['profile_pic'])
-                if os.path.exists(old_photo_path):
-                    os.remove(old_photo_path)
-            filename = save_file(photo, app.config['PROFILE_UPLOAD_FOLDER'])
-            users[session['username']]['profile_pic'] = filename
-            profile_message = "Profile photo uploaded!"
-            log_activity(session['username'], "Profile Photo Upload", filename)
+            file_manager = FileManager(config)
+            if not file_manager.allowed_file(photo.filename):
+                profile_message = "Invalid file type"
+            else:
+                # Get user and update profile pic
+                user = manager._users.get(session['username'])
+                if user and user.profile_pic:
+                    old_photo_path = os.path.join(config.profile_upload_folder, user.profile_pic)
+                    file_manager.delete_file(old_photo_path)
+                
+                filename = file_manager.save_file(photo, config.profile_upload_folder)
+                if user:
+                    user.profile_pic = filename
+                profile_message = "Profile photo uploaded!"
+                manager.log_activity(session['username'], "Profile Photo Upload", filename)
     
     # Handle Service Request
     elif request.method == 'POST' and 'service' in request.form:
         service = request.form.get('service', '').strip()
+        service_photo = None
         
         if not service:
             service_message = "Please enter your service request"
         else:
             if 'service_photo' in request.files:
                 photo = request.files['service_photo']
-                if photo.filename != '' and allowed_file(photo.filename):
-                    service_photo = save_file(photo, app.config['SERVICE_UPLOAD_FOLDER'])
+                if photo.filename != '':
+                    file_manager = FileManager(config)
+                    if file_manager.allowed_file(photo.filename):
+                        service_photo = file_manager.save_file(photo, config.service_upload_folder)
             
-            detected_category = detect_service_category(service)
-            
-            service_requests.append({
-                "id": generate_request_id(),
-                "username": session['username'],
-                "service": service,
-                "category": detected_category,
-                "status": "pending",
-                "date_requested": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "service_photo": service_photo,
-                "has_photo": service_photo is not None,
-                "admin_notes": "",
-                "last_update": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "technician_id": None,
-                "technician_name": None,
-                "technician_specialty": None,
-                "technician_assigned_date": None,
-                "payment_status": "unpaid",
-                "payment_method": None,
-                "payment_amount": None
-            })
-            users[session['username']]['total_requests'] = users[session['username']].get('total_requests', 0) + 1
-            service_message = "Service request submitted!"
-            log_activity(session['username'], "Service Request", f"{detected_category}: {service[:50]}")
-
-    user_requests = [req for req in service_requests if req['username'] == session['username']]
+            service_request = manager.create_service_request(session['username'], service, service_photo)
+            if service_request:
+                service_message = "Service request submitted!"
+            else:
+                service_message = "Failed to submit request"
     
-    # Check for payment success message
+    user = manager._users.get(session['username'])
+    user_requests = manager.get_user_requests(session['username'])
     payment_success = request.args.get('payment_success')
     payment_amount = request.args.get('amount')
     payment_method = request.args.get('method')
     pay_request = request.args.get('pay_request')
     
-    return render_template('userdashboard.html', 
+    return render_template('userdashboard.html',
                          profile_message=profile_message,
                          service_message=service_message,
                          user_requests=user_requests,
-                         user=users.get(session['username'], {}),
-                         calculate_service_amount=calculate_service_amount,
+                         user=user.to_dict() if user else {},
+                         calculate_service_amount=manager.calculate_service_amount,
                          payment_success=payment_success,
                          payment_amount=payment_amount,
                          payment_method=payment_method,
                          pay_request=pay_request)
 
 # ===== PAYMENT ROUTES =====
-
 @app.route('/create_payment/<request_id>', methods=['GET'])
 @login_required
 def create_payment(request_id):
-    username = session['username']
-    service_req = None
-    for req in service_requests:
-        if req['id'] == request_id and req['username'] == username:
-            service_req = req
-            break
-    if not service_req:
+    service_req = manager.get_request_by_id(request_id)
+    if not service_req or service_req.username != session['username']:
         return "Request not found", 404
     
-    amount = calculate_service_amount(service_req.get('category', 'General Repair'))
+    amount = manager.calculate_service_amount(service_req.category)
     return render_template('payment.html', request_id=request_id, amount=amount)
-
 
 @app.route('/process_payment_direct', methods=['POST'])
 @login_required
 def process_payment_direct():
-    global payment_id_counter
-    
     request_id = request.form.get('request_id')
     payment_method = request.form.get('payment_method')
     online_app = request.form.get('online_app')
     reference_number = request.form.get('reference_number', '')
     amount = request.form.get('amount')
-    username = session['username']
     
-    # Find request
-    service_req = None
-    for req in service_requests:
-        if req['id'] == request_id and req['username'] == username:
-            service_req = req
-            break
-    
-    if not service_req:
+    service_req = manager.get_request_by_id(request_id)
+    if not service_req or service_req.username != session['username']:
         return "Request not found", 404
     
     amount_int = int(amount)
-    transaction_id = f"TXN-{username[:3].upper()}{payment_id_counter}{datetime.now().strftime('%m%d%H%M')}"
+    payment = manager.create_payment(request_id, session['username'], payment_method, 
+                                     amount_int, reference_number, online_app)
     
-    # Create payment record - USING 'for_verification' to match admin dashboard
-    payment = {
-        'payment_id': f"PAY-{payment_id_counter}",
-        'request_id': request_id,
-        'username': username,
-        'amount': amount_int,
-        'payment_method': payment_method,
-        'online_app': online_app if payment_method == 'online' else None,
-        'reference_number': reference_number if payment_method == 'online' else None,
-        'status': 'for_verification' if payment_method == 'online' else 'pending_cash',
-        'payment_date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        'transaction_id': transaction_id,
-        'created_at': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    }
+    if not payment:
+        return "Failed to create payment", 400
     
-    payments.append(payment)
-    payment_id_counter += 1
-    
-    # Update request
-    service_req['payment_status'] = 'for_verification' if payment_method == 'online' else 'pending_cash'
-    service_req['payment_method'] = payment_method
-    service_req['payment_amount'] = amount_int
-    service_req['payment_id'] = payment['payment_id']
-    service_req['reference_number'] = reference_number if payment_method == 'online' else None
-    
-    log_activity(username, "Payment Submitted", f"Request {request_id} - {payment_method}")
-    
-    # Show success page
     if payment_method == 'online':
-        return render_template('success.html', 
-            icon='✅', 
-            title='Payment Submitted!', 
-            amount=amount, 
-            method=online_app, 
-            reference=reference_number, 
-            transaction=transaction_id,
+        return render_template('success.html',
+            icon='✅',
+            title='Payment Submitted!',
+            amount=amount,
+            method=online_app,
+            reference=reference_number,
+            transaction=payment.transaction_id,
             message='⏳ Pending verification by admin. You will receive confirmation within 24 hours.')
     else:
         return render_template('success.html',
-            icon='💵', 
-            title='Cash Payment Selected!', 
+            icon='💵',
+            title='Cash Payment Selected!',
             amount=amount,
-            method='Cash', 
-            reference='', 
+            method='Cash',
+            reference='',
             transaction='',
             message='Please prepare exact amount for the technician upon arrival.')
 
-
-# ADMIN VERIFY ONLINE PAYMENT
 @app.route('/verify_payment/<payment_id>', methods=['POST'])
 @admin_required
 def verify_payment(payment_id):
     action = request.form.get('action', 'approve')
-    
-    for payment in payments:
-        if payment['payment_id'] == payment_id:
-            if action == 'approve':
-                payment['status'] = 'paid'
-                payment['verified_date'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                payment['verified_by'] = session['username']
-                
-                # Update service request
-                for req in service_requests:
-                    if req['id'] == payment['request_id']:
-                        req['payment_status'] = 'paid'
-                        break
-                
-                log_activity(session['username'], "Payment Verified", f"Payment {payment_id} approved")
-            else:
-                payment['status'] = 'rejected'
-                payment['rejected_date'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                payment['rejected_by'] = session['username']
-                log_activity(session['username'], "Payment Rejected", f"Payment {payment_id} rejected")
-            
-            return redirect(url_for('admin_dashboard', section='payments'))
-    
+    if manager.verify_payment(payment_id, session['username'], action):
+        return redirect(url_for('admin_dashboard', section='payments'))
     return redirect(url_for('admin_dashboard', section='payments', error='not_found'))
 
-
-# ADMIN CONFIRM CASH PAYMENT
 @app.route('/admin/confirm_cash_payment/<request_id>', methods=['POST'])
 @admin_required
 def confirm_cash_payment(request_id):
-    for req in service_requests:
-        if req['id'] == request_id:
-            if req.get('payment_status') == 'pending_cash':
-                req['payment_status'] = 'paid'
-                # Update payment record
-                for payment in payments:
-                    if payment['request_id'] == request_id:
-                        payment['status'] = 'paid'
-                        payment['cash_confirmed_date'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        payment['confirmed_by'] = session['username']
-                        break
-                log_activity(session['username'], "Cash Payment Confirmed", f"Request {request_id}")
-                return redirect(url_for('admin_dashboard', section='payments'))
-    
+    if manager.confirm_cash_payment(request_id, session['username']):
+        return redirect(url_for('admin_dashboard', section='payments'))
     return redirect(url_for('admin_dashboard', section='payments'))
 
-# PROCESS PAYMENT (Original - keep for compatibility)
 @app.route('/process_payment', methods=['POST'])
 @login_required
 def process_payment():
-    global payment_id_counter
-    
     request_id = request.form.get('request_id')
     payment_method = request.form.get('payment_method')
     online_app = request.form.get('online_app', None)
     reference_number = request.form.get('reference_number', '')
-    username = session['username']
     
-    # Find the service request
-    service_req = None
-    for req in service_requests:
-        if req['id'] == request_id and req['username'] == username:
-            service_req = req
-            break
-    
-    if not service_req:
+    service_req = manager.get_request_by_id(request_id)
+    if not service_req or service_req.username != session['username']:
         return "Request not found", 404
     
-    if service_req.get('payment_status') == 'paid':
+    if service_req.payment_status == PaymentStatus.PAID:
         return "Already paid", 400
     
-    # Calculate amount
-    amount = calculate_service_amount(service_req.get('category', 'General Repair'))
+    amount = manager.calculate_service_amount(service_req.category)
+    payment = manager.create_payment(request_id, session['username'], payment_method, 
+                                     amount, reference_number, online_app)
     
-    # Create unique transaction ID
-    transaction_id = f"TXN-{username[:3].upper()}{payment_id_counter}{datetime.now().strftime('%m%d%H%M')}"
+    if not payment:
+        return "Failed to create payment", 400
     
-    # Create payment record
-    payment = {
-        'payment_id': f"PAY-{payment_id_counter}",
-        'request_id': request_id,
-        'username': username,
-        'amount': amount,
-        'payment_method': payment_method,
-        'online_app': online_app if payment_method == 'online' else None,
-        'reference_number': reference_number if payment_method == 'online' else None,
-        'status': 'for_verification' if payment_method == 'online' else 'pending_cash',
-        'payment_date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        'transaction_id': transaction_id
-    }
-    
-    payments.append(payment)
-    payment_id_counter += 1
-    
-    # Update service request with payment info
-    service_req['payment_status'] = 'for_verification' if payment_method == 'online' else 'pending_cash'
-    service_req['payment_method'] = payment_method
-    service_req['payment_amount'] = amount
-    service_req['payment_id'] = payment['payment_id']
-    service_req['transaction_id'] = transaction_id
-    if payment_method == 'online':
-        service_req['reference_number'] = reference_number
-    
-    log_activity(username, "Payment Submitted", f"Request {request_id} - {payment_method} - TXN: {transaction_id}")
-    
-    # Redirect back to user dashboard with success message
     return redirect(url_for('user_dashboard', payment_success='true', amount=amount, method=payment_method))
 
 # ===== QR CODE GENERATION =====
-
 @app.route('/generate_qr/<payment_method>/<amount>/<request_id>')
 @login_required
 def generate_qr(payment_method, amount, request_id):
-    """Generate QR code for payment"""
-    username = session['username']
-    
-    # Create payment data based on method
-    if payment_method == 'GCash':
-        payment_data = f"""GCash Payment
-Amount: ₱{amount}
-Account: 0999-888-7777
-Account Name: ServiceHub PH
-Reference: {request_id}
-Customer: {username}
-Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
-    elif payment_method == 'PayMaya':
-        payment_data = f"""PayMaya Payment
-Amount: ₱{amount}
-Account: 0988-777-6666
-Account Name: ServiceHub
-Reference: {request_id}
-Customer: {username}
-Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
-    elif payment_method == 'PayPal':
-        payment_data = f"""PayPal Payment
-Amount: ₱{amount}
-Email: payments@servicehub.com
-Account Name: ServiceHub Solutions
-Reference: {request_id}
-Customer: {username}
-Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
-    elif payment_method == 'Bank Transfer':
-        payment_data = f"""Bank Transfer Payment
-Amount: ₱{amount}
-Bank: BDO
-Account: 0045-1234-5678
-Account Name: ServiceHub Solutions Inc.
-Reference: {request_id}
-Customer: {username}
-Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
-    else:
-        payment_data = f"Payment Amount: ₱{amount}\nReference: {request_id}\nCustomer: {username}"
-    
-    # Generate QR code
-    qr = qrcode.QRCode(version=1, box_size=10, border=4)
-    qr.add_data(payment_data)
-    qr.make(fit=True)
-    
-    img = qr.make_image(fill_color="black", back_color="white")
-    
-    # Convert to base64 for embedding in HTML
-    buffered = BytesIO()
-    img.save(buffered, format="PNG")
-    img_str = base64.b64encode(buffered.getvalue()).decode()
-    
-    return jsonify({'qr_code': img_str, 'payment_data': payment_data})
+    qr_data = QRCodeGenerator.generate_payment_qr(payment_method, int(amount), request_id, session['username'])
+    return jsonify(qr_data)
 
-# EDIT REQUEST
+# ===== REQUEST MANAGEMENT ROUTES =====
 @app.route('/edit_request/<request_id>', methods=['GET', 'POST'])
 @login_required
 def edit_request(request_id):
-    request_to_edit = None
-    for req in service_requests:
-        if req['id'] == request_id and req['username'] == session['username']:
-            request_to_edit = req
-            break
+    service_req = manager.get_request_by_id(request_id)
     
-    if not request_to_edit:
+    if not service_req or service_req.username != session['username']:
         return "Request not found", 404
     
-    if request_to_edit['status'] in ['ongoing', 'completed']:
+    if service_req.status in [RequestStatus.ONGOING, RequestStatus.COMPLETED]:
         return "Cannot edit request that is ongoing or completed", 403
     
     if request.method == 'POST':
         new_service = request.form.get('service', '').strip()
         if new_service:
-            request_to_edit['service'] = new_service
-            request_to_edit['last_edited'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            log_activity(session['username'], "Edited Request", request_id)
+            service_req.service = new_service
+            manager.log_activity(session['username'], "Edited Request", request_id)
             return redirect(url_for('user_dashboard'))
     
-    return render_template('edit_request.html', request=request_to_edit)
+    return render_template('edit_request.html', request=service_req)
 
-# DELETE MY REQUEST
 @app.route('/delete_my_request/<request_id>')
 @login_required
 def delete_my_request(request_id):
-    global service_requests
-    for req in service_requests:
-        if req['id'] == request_id and req['username'] == session['username']:
-            if req['status'] != 'pending':
-                return "Cannot delete request that is ongoing or completed", 403
-            if req.get('service_photo'):
-                photo_path = os.path.join(app.config['SERVICE_UPLOAD_FOLDER'], req['service_photo'])
-                if os.path.exists(photo_path):
-                    os.remove(photo_path)
-            service_requests = [r for r in service_requests if r['id'] != request_id]
-            log_activity(session['username'], "Deleted Own Request", request_id)
-            break
+    service_req = manager.get_request_by_id(request_id)
+    
+    if service_req and service_req.username == session['username']:
+        if service_req.status != RequestStatus.PENDING:
+            return "Cannot delete request that is ongoing or completed", 403
+        
+        if manager.delete_service_request(request_id):
+            return redirect(url_for('user_dashboard'))
+    
     return redirect(url_for('user_dashboard'))
 
-# VIEW PHOTOS
+# ===== PHOTO VIEWING ROUTES =====
 @app.route('/view_profile_photo/<username>')
 @login_required
 def view_profile_photo(username):
-    if username not in users:
-        return "User not found", 404
-    if users[username].get('profile_pic'):
-        return send_from_directory(app.config['PROFILE_UPLOAD_FOLDER'], users[username]['profile_pic'])
-    return "No photo", 404
+    user = manager._users.get(username)
+    if not user or not user.profile_pic:
+        return "No photo", 404
+    return send_from_directory(config.profile_upload_folder, user.profile_pic)
 
 @app.route('/view_service_photo/<request_id>')
 @admin_required
 def view_service_photo(request_id):
-    for req in service_requests:
-        if req['id'] == request_id and req.get('service_photo'):
-            return send_from_directory(app.config['SERVICE_UPLOAD_FOLDER'], req['service_photo'])
-    return "No photo", 404
+    service_req = manager.get_request_by_id(request_id)
+    if not service_req or not service_req.service_photo:
+        return "No photo", 404
+    return send_from_directory(config.service_upload_folder, service_req.service_photo)
 
-# ADMIN DASHBOARD
+# ===== ADMIN DASHBOARD =====
 @app.route('/admindashboard')
 @admin_required
 def admin_dashboard():
     section = request.args.get('section', 'dashboard')
     
-    total_users = len([u for u in users if u != 'admin'])
-    total_requests = len(service_requests)
-    pending_requests = len([r for r in service_requests if r.get('status') == 'pending'])
-    ongoing_requests = len([r for r in service_requests if r.get('status') == 'ongoing'])
-    completed_requests = len([r for r in service_requests if r.get('status') == 'completed'])
-    users_with_photos = len([u for u in users.values() if u.get('profile_pic')])
-    requests_with_photos = len([r for r in service_requests if r.get('has_photo')])
+    total_users = len([u for u in manager._users.keys() if u != 'admin'])
+    total_requests = len(manager._service_requests)
+    pending_requests = len([r for r in manager._service_requests if r.status == RequestStatus.PENDING])
+    ongoing_requests = len([r for r in manager._service_requests if r.status == RequestStatus.ONGOING])
+    completed_requests = len([r for r in manager._service_requests if r.status == RequestStatus.COMPLETED])
+    users_with_photos = len([u for u in manager._users.values() if u.profile_pic])
+    requests_with_photos = len([r for r in manager._service_requests if r.has_photo])
     
+    # Prepare chart data
     week_days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
     week_data = [0] * 7
     
-    for req in service_requests:
-        if req.get('date_requested'):
+    for req in manager._service_requests:
+        if req.date_requested:
             try:
-                req_date = datetime.strptime(req['date_requested'], "%Y-%m-%d %H:%M:%S")
+                req_date = datetime.strptime(req.date_requested, "%Y-%m-%d %H:%M:%S")
                 day_index = req_date.weekday()
                 week_data[day_index] += 1
             except:
                 pass
+    
     max_week = max(week_data) if week_data and max(week_data) > 0 else 1
     
     months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -885,10 +1520,10 @@ def admin_dashboard():
     
     price_per_service = 500
     
-    for req in service_requests:
-        if req.get('status') == 'completed' and req.get('date_requested'):
+    for req in manager._service_requests:
+        if req.status == RequestStatus.COMPLETED and req.date_requested:
             try:
-                req_date = datetime.strptime(req['date_requested'], "%Y-%m-%d %H:%M:%S")
+                req_date = datetime.strptime(req.date_requested, "%Y-%m-%d %H:%M:%S")
                 month_index = req_date.month - 1
                 revenue_data[month_index] += price_per_service
             except:
@@ -903,10 +1538,10 @@ def admin_dashboard():
              '12 PM', '1 PM', '2 PM', '3 PM', '4 PM', '5 PM', '6 PM', '7 PM', '8 PM', '9 PM', '10 PM', '11 PM']
     hourly_users = [0] * 24
     
-    for activity in activities:
-        if activity.get('action') == 'Login' and activity.get('timestamp'):
+    for activity in manager._activities:
+        if activity.action == 'Login' and activity.timestamp:
             try:
-                activity_time = datetime.strptime(activity['timestamp'], "%Y-%m-%d %H:%M:%S")
+                activity_time = datetime.strptime(activity.timestamp, "%Y-%m-%d %H:%M:%S")
                 hour_index = activity_time.hour
                 hourly_users[hour_index] += 1
             except:
@@ -920,129 +1555,108 @@ def admin_dashboard():
     language = request.cookies.get('language', 'english')
     total_revenue = sum(revenue_data)
     
-    # Get payment summary
-    payment_summary = get_payment_summary()
+    payment_summary = manager.get_payment_summary()
     
-    return render_template(
-        'admindashboard.html',
-        section=section,
-        total_users=total_users,
-        total_requests=total_requests,
-        pending_requests=pending_requests,
-        ongoing_requests=ongoing_requests,
-        completed_requests=completed_requests,
-        users_with_photos=users_with_photos,
-        requests_with_photos=requests_with_photos,
-        users=users,
-        service_requests=service_requests,
-        technicians=technicians,
-        week_days=week_days,
-        week_data=week_data,
-        max_week=max_week,
-        months=months,
-        revenue_data=revenue_data,
-        max_revenue=max_revenue,
-        hours=peak_hours,
-        hourly_users=peak_hourly_data,
-        max_hourly=max_hourly,
-        total_revenue=total_revenue,
-        theme=theme,
-        language=language,
-        login_count=login_count,
-        activities=activities[-10:],
-        payment_summary=payment_summary,
-        payments=payments,
-        calculate_service_amount=calculate_service_amount
-    )
+    return render_template('admindashboard.html',
+                         section=section,
+                         total_users=total_users,
+                         total_requests=total_requests,
+                         pending_requests=pending_requests,
+                         ongoing_requests=ongoing_requests,
+                         completed_requests=completed_requests,
+                         users_with_photos=users_with_photos,
+                         requests_with_photos=requests_with_photos,
+                         users={u: user.to_dict() for u, user in manager._users.items()},
+                         service_requests=[req.to_dict() for req in manager._service_requests],
+                         technicians=[tech.to_dict() for tech in manager._technicians],
+                         week_days=week_days,
+                         week_data=week_data,
+                         max_week=max_week,
+                         months=months,
+                         revenue_data=revenue_data,
+                         max_revenue=max_revenue,
+                         hours=peak_hours,
+                         hourly_users=peak_hourly_data,
+                         max_hourly=max_hourly,
+                         total_revenue=total_revenue,
+                         theme=theme,
+                         language=language,
+                         login_count=manager.login_count,
+                         activities=[act.to_dict() for act in manager._activities[-10:]],
+                         payment_summary=payment_summary,
+                         payments=[p.to_dict() for p in manager._payments],
+                         calculate_service_amount=manager.calculate_service_amount)
 
-# UPDATE REQUEST STATUS
+# ===== REQUEST STATUS UPDATE =====
 @app.route('/update_request/<request_id>', methods=['POST'])
 @admin_required
 def update_request(request_id):
     status = request.form.get('status')
     notes = request.form.get('notes', '')
-    for req in service_requests:
-        if req['id'] == request_id:
-            req['status'] = status
-            if notes:
-                req['admin_notes'] = notes
-            req['last_update'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            
-            if status == 'completed' and req.get('technician_id'):
-                # Unassign technician and update status
-                for tech in technicians:
-                    if tech['id'] == req['technician_id']:
-                        if request_id in tech['assigned_requests']:
-                            tech['assigned_requests'].remove(request_id)
-                            # Update technician status (will become available if no more requests)
-                            update_technician_status(tech['id'])
-                        break
-                req['technician_id'] = None
-                req['technician_name'] = None
-                req['technician_specialty'] = None
-                req['technician_assigned_date'] = None
-            
-            log_activity(session['username'], "Updated Request", f"{request_id} -> {status}")
-            break
+    
+    service_req = manager.get_request_by_id(request_id)
+    if service_req:
+        service_req.status = RequestStatus(status)
+        if notes:
+            service_req.admin_notes = notes
+        
+        if status == 'completed' and service_req.technician_id:
+            manager.unassign_technician_from_request(request_id)
+        
+        manager.log_activity(session['username'], "Updated Request", f"{request_id} -> {status}")
+    
     return redirect(url_for('admin_dashboard', section='requests'))
 
-# GET AVAILABLE TECHNICIANS FOR A SERVICE
+# ===== TECHNICIAN MANAGEMENT ROUTES =====
 @app.route('/get_available_technicians/<request_id>')
 @admin_required
 def get_available_technicians(request_id):
-    for req in service_requests:
-        if req['id'] == request_id:
-            service_text = req.get('service', '')
-            available_techs = get_available_technicians_for_service(service_text)
-            return jsonify([{
-                'id': tech['id'],
-                'name': tech['name'],
-                'specialty': tech['specialty'],
-                'rating': tech['rating']
-            } for tech in available_techs])
+    service_req = manager.get_request_by_id(request_id)
+    if service_req:
+        available_techs = manager.get_available_technicians_for_service(service_req.service)
+        return jsonify([{
+            'id': tech.id,
+            'name': tech.name,
+            'specialty': tech.specialty,
+            'rating': tech.rating
+        } for tech in available_techs])
     return jsonify([])
 
-# ASSIGN TECHNICIAN TO REQUEST
 @app.route('/assign_technician/<request_id>', methods=['POST'])
 @admin_required
 def assign_technician(request_id):
     technician_id = request.form.get('technician_id')
-    if assign_technician_to_request(request_id, technician_id):
+    if manager.assign_technician_to_request(request_id, int(technician_id)):
         return redirect(url_for('admin_dashboard', section='requests'))
     return "Failed to assign technician", 400
 
-# ASSIGN TECHNICIAN TO REQUEST FROM TECHNICIAN SECTION
 @app.route('/assign_technician_to_request', methods=['POST'])
 @admin_required
 def assign_technician_to_request_route():
     technician_id = request.form.get('technician_id')
     request_id = request.form.get('request_id')
     if technician_id and request_id:
-        if assign_technician_to_request(request_id, technician_id):
+        if manager.assign_technician_to_request(request_id, int(technician_id)):
             return redirect(url_for('admin_dashboard', section='technicians'))
     return "Failed to assign technician", 400
 
-# UNASSIGN TECHNICIAN FROM REQUEST
 @app.route('/unassign_technician/<request_id>', methods=['POST'])
 @admin_required
 def unassign_technician(request_id):
-    if unassign_technician_from_request(request_id):
+    if manager.unassign_technician_from_request(request_id):
         return redirect(url_for('admin_dashboard', section='requests'))
     return "Failed to unassign technician", 400
 
-# UPDATE TECHNICIAN STATUS (Manual override - optional)
 @app.route('/update_technician_status/<int:technician_id>', methods=['POST'])
 @admin_required
 def update_technician_status_manual(technician_id):
     status = request.form.get('status')
-    for tech in technicians:
-        if tech['id'] == technician_id:
-            tech['status'] = status
-            log_activity(session.get('username'), "Updated Technician Status", f"{tech['name']} -> {status}")
-            break
+    technician = manager.get_technician_by_id(technician_id)
+    if technician:
+        technician.status = TechnicianStatus(status)
+        manager.log_activity(session.get('username'), "Updated Technician Status", f"{technician.name} -> {status}")
     return redirect(url_for('admin_dashboard', section='technicians'))
 
-# ADD NEW TECHNICIAN
 @app.route('/add_technician', methods=['POST'])
 @admin_required
 def add_technician():
@@ -1052,46 +1666,30 @@ def add_technician():
     email = request.form.get('email')
     keywords = request.form.get('keywords', '')
     if name and specialty:
-        add_new_technician(name, specialty, contact, email, keywords)
+        manager.add_technician(name, specialty, contact, email, keywords)
     return redirect(url_for('admin_dashboard', section='technicians'))
 
-# DELETE TECHNICIAN
 @app.route('/delete_technician/<int:technician_id>')
 @admin_required
 def delete_technician_route(technician_id):
-    delete_technician(technician_id)
+    manager.delete_technician(technician_id)
     return redirect(url_for('admin_dashboard', section='technicians'))
 
-# DELETE USER
+# ===== USER AND REQUEST DELETION =====
 @app.route('/delete_user/<username>')
 @admin_required
 def delete_user(username):
-    if username == 'admin':
-        return "Cannot delete admin", 403
-    elif username in users:
-        if users[username].get('profile_pic'):
-            photo_path = os.path.join(app.config['PROFILE_UPLOAD_FOLDER'], users[username]['profile_pic'])
-            if os.path.exists(photo_path):
-                os.remove(photo_path)
-        del users[username]
-        log_activity(session['username'], "Deleted User", username)
-    return redirect(url_for('admin_dashboard', section='dashboard'))
+    if manager.delete_user(username):
+        return redirect(url_for('admin_dashboard', section='dashboard'))
+    return "Cannot delete admin or user not found", 403
 
-# DELETE REQUEST
 @app.route('/delete_request/<request_id>')
 @admin_required
 def delete_request(request_id):
-    global service_requests
-    for req in service_requests:
-        if req['id'] == request_id and req.get('service_photo'):
-            photo_path = os.path.join(app.config['SERVICE_UPLOAD_FOLDER'], req['service_photo'])
-            if os.path.exists(photo_path):
-                os.remove(photo_path)
-    service_requests = [req for req in service_requests if req['id'] != request_id]
-    log_activity(session['username'], "Deleted Request", request_id)
+    manager.delete_service_request(request_id)
     return redirect(url_for('admin_dashboard', section='requests'))
 
-# SAVE SETTINGS
+# ===== SETTINGS AND PROFILE =====
 @app.route('/save_settings', methods=['POST'])
 @admin_required
 def save_settings():
@@ -1102,26 +1700,24 @@ def save_settings():
     response.set_cookie('language', language, max_age=31536000)
     return response
 
-# PROFILE PAGE
 @app.route('/profile')
 @login_required
 def profile():
-    user = users.get(session['username'])
+    user = manager._users.get(session['username'])
     if not user:
         return "User not found", 404
-    user_requests = [req for req in service_requests if req['username'] == session['username']]
-    return render_template('profile.html', user=user, user_requests=user_requests)
+    user_requests = manager.get_user_requests(session['username'])
+    return render_template('profile.html', user=user.to_dict(), user_requests=user_requests)
 
-# LOGOUT
 @app.route('/logout')
 def logout():
     username = session.get('username')
     session.clear()
     if username:
-        log_activity(username, "Logout", "User logged out")
+        manager.log_activity(username, "Logout", "User logged out")
     return redirect(url_for('login'))
 
-# ERROR HANDLERS
+# ===== ERROR HANDLERS =====
 @app.errorhandler(403)
 def forbidden(e):
     return "<h1>403 Access Denied</h1><a href='/login'>Back to Login</a>", 403
