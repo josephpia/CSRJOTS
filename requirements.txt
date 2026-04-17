@@ -1,0 +1,4 @@
+Flask==2.3.3
+qrcode==7.4.2
+Pillow==10.0.0
+cloudinary==1.33.0
