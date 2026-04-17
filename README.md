@@ -41,6 +41,9 @@ bash
 * Install Flask (Web Framework)
 pip install Flask
 
+* Install Cloudinary(Storing upload picture)
+  pip install cloudinary
+
 * Install QRCode (For payment QR codes)
 pip install qrcode
 
