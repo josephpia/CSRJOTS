@@ -16,6 +16,7 @@ import tempfile
 import cloudinary
 import cloudinary.uploader
 import cloudinary.utils
+import statistics
 
 # ===== CLOUDINARY CONFIGURATION (REQUIRED FOR VERCEL) =====
 cloudinary.config(
@@ -78,6 +79,7 @@ class Config:
             'Plumbing Repair': 600,
             'Electrical Repair': 700,
             'Electronics Repair': 400,
+            'General Repair': 500,
         }
         
         self._company_payment_accounts = {
@@ -134,6 +136,19 @@ class Config:
     
     def get_service_price(self, category: str) -> int:
         return self._service_prices.get(category, 500)
+
+
+# ===== TRANSACTION CLASS =====
+@dataclass
+class Transaction:
+    """Transaction class for completed services"""
+    transaction_id: int
+    request_id: str
+    amount: float
+    transaction_date: datetime
+    payment_method: str
+    username: str
+    category: str
 
 
 # ===== USER CLASS =====
@@ -233,6 +248,7 @@ class User:
     
     def to_dict(self) -> Dict:
         return {
+            "username": self._username,
             "firstname": self._firstname,
             "middlename": self._middlename,
             "lastname": self._lastname,
@@ -364,6 +380,7 @@ class ServiceRequest:
         self._payment_id = None
         self._reference_number = None
         self._transaction_id = None
+        self._completion_date = None
     
     @property
     def id(self):
@@ -394,6 +411,8 @@ class ServiceRequest:
     def status(self, value):
         self._status = value
         self._last_update = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        if value == RequestStatus.COMPLETED:
+            self._completion_date = datetime.now()
     
     @property
     def date_requested(self):
@@ -511,6 +530,10 @@ class ServiceRequest:
     def transaction_id(self, value):
         self._transaction_id = value
     
+    @property
+    def completion_date(self):
+        return self._completion_date
+    
     def assign_technician(self, technician: Technician):
         self._technician_id = technician.id
         self._technician_name = technician.name
@@ -562,7 +585,8 @@ class ServiceRequest:
             "payment_amount": self._payment_amount,
             "payment_id": self._payment_id,
             "reference_number": self._reference_number,
-            "transaction_id": self._transaction_id
+            "transaction_id": self._transaction_id,
+            "completion_date": self._completion_date.strftime("%Y-%m-%d %H:%M:%S") if self._completion_date else None
         }
 
 
@@ -728,6 +752,35 @@ class ActivityLog:
         }
 
 
+# ===== SERVICE HISTORY MANAGER CLASS =====
+class ServiceHistoryManager:
+    """Service History Manager for tracking and filtering requests"""
+    def __init__(self):
+        self._transactions: List[Transaction] = []
+        self._next_transaction_id = 1
+    
+    def create_transaction(self, request: ServiceRequest) -> Optional[Transaction]:
+        """Create a transaction when service is completed and paid"""
+        if request.status == RequestStatus.COMPLETED and request.payment_status == PaymentStatus.PAID:
+            transaction = Transaction(
+                transaction_id=self._next_transaction_id,
+                request_id=request.id,
+                amount=request.payment_amount or 0,
+                transaction_date=request.completion_date or datetime.now(),
+                payment_method=request.payment_method or "unknown",
+                username=request.username,
+                category=request.category
+            )
+            self._transactions.append(transaction)
+            self._next_transaction_id += 1
+            return transaction
+        return None
+    
+    @property
+    def transactions(self):
+        return self._transactions
+
+
 # ===== FILE MANAGER CLASS WITH CLOUDINARY =====
 class CloudinaryFileManager:
     """Cloudinary file management class for Vercel deployment"""
@@ -849,6 +902,7 @@ class ServiceHubManager:
         self._activities: List[ActivityLog] = []
         self._file_manager = CloudinaryFileManager(config)
         self._qr_generator = QRCodeGenerator()
+        self._service_history_manager = ServiceHistoryManager()
         self._request_id_counter = 1000
         self._payment_id_counter = 1
         self._activity_id_counter = 1
@@ -1061,6 +1115,8 @@ class ServiceHubManager:
                     for req in self._service_requests:
                         if req.id == payment.request_id:
                             req.payment_status = PaymentStatus.PAID
+                            if req.status == RequestStatus.COMPLETED:
+                                self._service_history_manager.create_transaction(req)
                             break
                     self.log_activity(verified_by, "Payment Verified", f"Payment {payment_id} approved")
                 else:
@@ -1078,6 +1134,8 @@ class ServiceHubManager:
                         if payment.request_id == request_id:
                             payment.confirm_cash(confirmed_by)
                             break
+                    if req.status == RequestStatus.COMPLETED:
+                        self._service_history_manager.create_transaction(req)
                     self.log_activity(confirmed_by, "Cash Payment Confirmed", f"Request {request_id}")
                     return True
         return False
@@ -1117,6 +1175,31 @@ class ServiceHubManager:
             'total_transactions': len(self._payments)
         }
     
+    def get_service_status_summary(self) -> Dict:
+        """Get summary of REAL requests by status"""
+        return {
+            'pending': len([r for r in self._service_requests if r.status == RequestStatus.PENDING]),
+            'ongoing': len([r for r in self._service_requests if r.status == RequestStatus.ONGOING]),
+            'completed': len([r for r in self._service_requests if r.status == RequestStatus.COMPLETED]),
+            'total': len(self._service_requests)
+        }
+    
+    def get_real_transactions(self, limit: int = 5) -> List[Dict]:
+        """Get REAL completed and paid transactions"""
+        transactions = []
+        for req in self._service_requests:
+            if req.status == RequestStatus.COMPLETED and req.payment_status == PaymentStatus.PAID:
+                transactions.append({
+                    'transaction_id': req.id,
+                    'request_id': req.id,
+                    'username': req.username,
+                    'category': req.category,
+                    'amount': req.payment_amount or 0,
+                    'transaction_date': req.completion_date or datetime.now()
+                })
+        transactions.sort(key=lambda x: x['transaction_date'], reverse=True)
+        return transactions[:limit]
+    
     def get_user_requests(self, username: str) -> List[Dict]:
         return [req.to_dict() for req in self._service_requests if req.username == username]
     
@@ -1151,6 +1234,10 @@ class ServiceHubManager:
     @property
     def service_prices(self):
         return self._config.service_prices
+    
+    @property
+    def service_history_manager(self):
+        return self._service_history_manager
     
     def calculate_service_amount(self, category: str) -> int:
         return self._config.get_service_price(category)
@@ -1276,7 +1363,6 @@ def user_dashboard():
     profile_message = ""
     service_message = ""
     
-    # Handle Profile Photo Upload with Cloudinary
     if request.method == 'POST' and 'profile_photo' in request.files:
         photo = request.files['profile_photo']
         if photo.filename == '':
@@ -1296,7 +1382,6 @@ def user_dashboard():
                 else:
                     profile_message = "Upload failed. Please check Cloudinary configuration."
     
-    # Handle Service Request with Cloudinary
     elif request.method == 'POST' and 'service' in request.form:
         service = request.form.get('service', '').strip()
         service_photo_url = None
@@ -1304,7 +1389,6 @@ def user_dashboard():
         if not service:
             service_message = "Please enter your service request"
         else:
-            # Check for uploaded photo
             if 'service_photo' in request.files:
                 photo = request.files['service_photo']
                 if photo and photo.filename != '':
@@ -1312,21 +1396,12 @@ def user_dashboard():
                     if file_manager.allowed_file(photo.filename):
                         try:
                             service_photo_url = file_manager.upload_file(photo, 'service_requests')
-                            if service_photo_url:
-                                print(f"✅ Photo uploaded successfully: {service_photo_url}")
-                            else:
-                                print("❌ Photo upload failed")
-                                service_message = "Photo upload failed, but request will be submitted without photo"
                         except Exception as e:
-                            print(f"❌ Upload error: {str(e)}")
-                            service_message = f"Upload error: {str(e)}"
+                            print(f"Upload error: {str(e)}")
             
-            # Create service request with or without photo
             service_request = manager.create_service_request(session['username'], service, service_photo_url)
             if service_request:
                 service_message = "Service request submitted successfully!"
-                if service_photo_url:
-                    service_message += " Photo attached."
             else:
                 service_message = "Failed to submit request"
     
@@ -1387,7 +1462,7 @@ def process_payment_direct():
             method=online_app,
             reference=reference_number,
             transaction=payment.transaction_id,
-            message='⏳ Pending verification by admin. You will receive confirmation within 24 hours.')
+            message='Pending verification by admin.')
     else:
         return render_template('success.html',
             icon='💵',
@@ -1496,37 +1571,244 @@ def view_service_photo(request_id):
         return "No photo", 404
     return redirect(service_req.service_photo_url)
 
-# ===== TEST ROUTES (REMOVE AFTER TESTING) =====
+# ===== TEST ROUTES =====
 @app.route('/test-cloudinary')
 def test_cloudinary():
     cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME', '')
     if not cloud_name:
-        return "❌ Cloudinary NOT configured! Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in Vercel environment variables."
+        return "❌ Cloudinary NOT configured!"
     return f"✅ Cloudinary configured with cloud name: {cloud_name}"
 
-@app.route('/test-upload', methods=['GET', 'POST'])
-def test_upload():
+# ===== SERVICE HISTORY & REPORTING ROUTES =====
+
+@app.route('/admin/service-history')
+@admin_required
+def service_history():
+    """View REAL service requests from actual users with filters"""
+    status_filter = request.args.get('status', 'all')
+    start_date = request.args.get('start_date', '')
+    end_date = request.args.get('end_date', '')
+    
+    all_requests = manager._service_requests
+    
+    filtered_requests = all_requests
+    if status_filter != 'all':
+        filtered_requests = [r for r in filtered_requests if r.status.value == status_filter]
+    
+    if start_date:
+        try:
+            start = datetime.strptime(start_date, '%Y-%m-%d')
+            filtered_requests = [r for r in filtered_requests 
+                               if datetime.strptime(r.date_requested, '%Y-%m-%d %H:%M:%S') >= start]
+        except:
+            pass
+    
+    if end_date:
+        try:
+            end = datetime.strptime(end_date, '%Y-%m-%d')
+            end = end.replace(hour=23, minute=59, second=59)
+            filtered_requests = [r for r in filtered_requests 
+                               if datetime.strptime(r.date_requested, '%Y-%m-%d %H:%M:%S') <= end]
+        except:
+            pass
+    
+    status_summary = manager.get_service_status_summary()
+    
+    return render_template('service_history.html',
+                         requests=[req.to_dict() for req in filtered_requests],
+                         current_filter=status_filter,
+                         start_date=start_date,
+                         end_date=end_date,
+                         status_summary=status_summary)
+
+@app.route('/admin/update-request-status/<request_id>', methods=['POST'])
+@admin_required
+def update_request_status(request_id):
+    """Update service request status"""
+    new_status = request.form.get('status')
+    service_req = manager.get_request_by_id(request_id)
+    
+    if service_req and new_status:
+        if new_status == 'pending':
+            service_req.status = RequestStatus.PENDING
+        elif new_status == 'ongoing':
+            service_req.status = RequestStatus.ONGOING
+        elif new_status == 'completed':
+            service_req.status = RequestStatus.COMPLETED
+            if service_req.payment_status == PaymentStatus.PAID:
+                manager._service_history_manager.create_transaction(service_req)
+        
+        manager.log_activity(session['username'], "Updated Request Status", 
+                           f"Request {request_id} -> {new_status}")
+    
+    return redirect(url_for('service_history'))
+
+@app.route('/admin/reports/monthly', methods=['GET', 'POST'])
+@admin_required
+def monthly_report():
+    """Generate and view monthly reports from REAL data"""
+    report_data = None
+    selected_year = None
+    selected_month = None
+    available_years = set()
+    
+    for req in manager._service_requests:
+        if req.status == RequestStatus.COMPLETED and req.payment_status == PaymentStatus.PAID:
+            if req.completion_date:
+                available_years.add(req.completion_date.year)
+    
+    if not available_years:
+        available_years.add(datetime.now().year)
+    
     if request.method == 'POST':
-        if 'test_photo' in request.files:
-            photo = request.files['test_photo']
-            if photo.filename != '':
-                file_manager = CloudinaryFileManager(config)
-                url = file_manager.upload_file(photo, 'test')
-                if url:
-                    return f"""
-                    <h2>✅ Upload successful!</h2>
-                    <img src='{url}' width='300'>
-                    <p>URL: {url}</p>
-                    """
-                else:
-                    return "❌ Upload failed. Check Cloudinary configuration."
-    return '''
-        <h2>Test Photo Upload</h2>
-        <form method="POST" enctype="multipart/form-data">
-            <input type="file" name="test_photo" accept="image/*" required>
-            <button type="submit">Test Upload to Cloudinary</button>
-        </form>
-    '''
+        year = int(request.form.get('year'))
+        month = int(request.form.get('month'))
+        selected_year = year
+        selected_month = month
+        
+        monthly_income = 0
+        daily_breakdown = {}
+        service_breakdown = {}
+        transaction_count = 0
+        
+        for req in manager._service_requests:
+            if req.status == RequestStatus.COMPLETED and req.payment_status == PaymentStatus.PAID:
+                if req.completion_date:
+                    if req.completion_date.year == year and req.completion_date.month == month:
+                        amount = req.payment_amount or 0
+                        monthly_income += amount
+                        transaction_count += 1
+                        
+                        day = req.completion_date.day
+                        daily_breakdown[day] = daily_breakdown.get(day, 0) + amount
+                        
+                        category = req.category
+                        service_breakdown[category] = service_breakdown.get(category, 0) + amount
+        
+        days_with_income = len(daily_breakdown)
+        avg_daily_income = monthly_income / days_with_income if days_with_income > 0 else 0
+        
+        report_data = {
+            'year': year,
+            'month': month,
+            'total_income': monthly_income,
+            'transaction_count': transaction_count,
+            'average_daily_income': avg_daily_income,
+            'daily_breakdown': daily_breakdown,
+            'service_breakdown': service_breakdown
+        }
+    
+    theme = request.cookies.get('theme', 'light')
+    return render_template('monthly_report.html',
+                         report=report_data,
+                         available_years=sorted(available_years, reverse=True),
+                         selected_year=selected_year,
+                         selected_month=selected_month,
+                         theme=theme)
+
+@app.route('/admin/reports/daily')
+@admin_required
+def daily_report():
+    """View daily income report from REAL data"""
+    date_str = request.args.get('date')
+    if date_str:
+        try:
+            date = datetime.strptime(date_str, '%Y-%m-%d')
+        except:
+            date = datetime.now()
+    else:
+        date = datetime.now()
+    
+    daily_completed = []
+    total_income = 0
+    
+    for req in manager._service_requests:
+        if req.status == RequestStatus.COMPLETED and req.payment_status == PaymentStatus.PAID:
+            if req.completion_date and req.completion_date.date() == date.date():
+                daily_completed.append(req)
+                total_income += (req.payment_amount or 0)
+    
+    report = {
+        'date': date.strftime('%Y-%m-%d'),
+        'total_income': total_income,
+        'transaction_count': len(daily_completed),
+        'average_per_transaction': total_income / len(daily_completed) if daily_completed else 0,
+        'completed_services': len(daily_completed),
+        'requests': daily_completed
+    }
+    
+    theme = request.cookies.get('theme', 'light')
+    return render_template('daily_report.html',
+                         report=report,
+                         selected_date=date_str,
+                         theme=theme)
+
+@app.route('/admin/reports/statistics')
+@admin_required
+def statistics_report():
+    """View income statistics for a date range from REAL data"""
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    
+    stats = None
+    if start_date and end_date:
+        try:
+            start = datetime.strptime(start_date, '%Y-%m-%d')
+            end = datetime.strptime(end_date, '%Y-%m-%d')
+            end = end.replace(hour=23, minute=59, second=59)
+            
+            period_completed = []
+            for req in manager._service_requests:
+                if req.status == RequestStatus.COMPLETED and req.payment_status == PaymentStatus.PAID:
+                    if req.completion_date:
+                        if start <= req.completion_date <= end:
+                            period_completed.append(req)
+            
+            amounts = [req.payment_amount or 0 for req in period_completed]
+            
+            if amounts:
+                stats = {
+                    'total_income': sum(amounts),
+                    'average_transaction': statistics.mean(amounts),
+                    'median_transaction': statistics.median(amounts),
+                    'max_transaction': max(amounts),
+                    'min_transaction': min(amounts),
+                    'transaction_count': len(amounts)
+                }
+            else:
+                stats = {
+                    'total_income': 0,
+                    'average_transaction': 0,
+                    'median_transaction': 0,
+                    'max_transaction': 0,
+                    'min_transaction': 0,
+                    'transaction_count': 0
+                }
+        except:
+            pass
+    
+    theme = request.cookies.get('theme', 'light')
+    return render_template('statistics.html', stats=stats, theme=theme)
+
+@app.route('/user/history/<username>')
+@login_required
+def user_history(username):
+    """View service history for a specific user"""
+    if session.get('username') != username and session.get('role') != 'admin':
+        abort(403)
+    
+    user_requests = manager.get_user_requests(username)
+    user = manager._users.get(username)
+    
+    total_spent = sum(req['payment_amount'] or 0 for req in user_requests 
+                     if req['status'] == 'completed' and req['payment_status'] == 'paid')
+    
+    theme = request.cookies.get('theme', 'light')
+    return render_template('user_history.html',
+                         requests=user_requests,
+                         user=user.to_dict() if user else {},
+                         total_spent=total_spent,
+                         theme=theme)
 
 # ===== ADMIN DASHBOARD =====
 @app.route('/admindashboard')
@@ -1559,19 +1841,11 @@ def admin_dashboard():
     months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     revenue_data = [0] * 12
     
-    price_per_service = 500
-    
     for req in manager._service_requests:
-        if req.status == RequestStatus.COMPLETED and req.date_requested:
-            try:
-                req_date = datetime.strptime(req.date_requested, "%Y-%m-%d %H:%M:%S")
-                month_index = req_date.month - 1
-                revenue_data[month_index] += price_per_service
-            except:
-                pass
-    
-    if sum(revenue_data) == 0:
-        revenue_data = [0, 0, 0, 0, 12500, 14200, 15800, 16500, 17200, 18800, 19500, 21000]
+        if req.status == RequestStatus.COMPLETED and req.payment_status == PaymentStatus.PAID:
+            if req.completion_date:
+                month_index = req.completion_date.month - 1
+                revenue_data[month_index] += (req.payment_amount or 0)
     
     max_revenue = max(revenue_data) if revenue_data and max(revenue_data) > 0 else 1
     
@@ -1597,6 +1871,8 @@ def admin_dashboard():
     total_revenue = sum(revenue_data)
     
     payment_summary = manager.get_payment_summary()
+    status_summary = manager.get_service_status_summary()
+    recent_transactions = manager.get_real_transactions(5)
     
     return render_template('admindashboard.html',
                          section=section,
@@ -1626,6 +1902,8 @@ def admin_dashboard():
                          activities=[act.to_dict() for act in manager._activities[-10:]],
                          payment_summary=payment_summary,
                          payments=[p.to_dict() for p in manager._payments],
+                         status_summary=status_summary,
+                         recent_transactions=recent_transactions,
                          calculate_service_amount=manager.calculate_service_amount)
 
 # ===== REQUEST STATUS UPDATE =====
@@ -1641,8 +1919,11 @@ def update_request(request_id):
         if notes:
             service_req.admin_notes = notes
         
-        if status == 'completed' and service_req.technician_id:
-            manager.unassign_technician_from_request(request_id)
+        if status == 'completed':
+            if service_req.payment_status == PaymentStatus.PAID:
+                manager._service_history_manager.create_transaction(service_req)
+            if service_req.technician_id:
+                manager.unassign_technician_from_request(request_id)
         
         manager.log_activity(session['username'], "Updated Request", f"{request_id} -> {status}")
     
