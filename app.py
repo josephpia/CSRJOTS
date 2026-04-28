@@ -1360,6 +1360,9 @@ def user_dashboard():
     if session.get('role') == 'admin':
         return redirect(url_for('admin_dashboard'))
     
+    page = request.args.get('page', 'dashboard')
+    status_filter = request.args.get('status', '')
+    
     profile_message = ""
     service_message = ""
     
@@ -1413,6 +1416,8 @@ def user_dashboard():
     pay_request = request.args.get('pay_request')
     
     return render_template('userdashboard.html',
+                         page=page,
+                         status_filter=status_filter,
                          profile_message=profile_message,
                          service_message=service_message,
                          user_requests=user_requests,
@@ -1579,74 +1584,16 @@ def test_cloudinary():
         return "❌ Cloudinary NOT configured!"
     return f"✅ Cloudinary configured with cloud name: {cloud_name}"
 
-# ===== SERVICE HISTORY & REPORTING ROUTES =====
-
+# ===== OLD SERVICE HISTORY ROUTE - NOW REDIRECTS =====
 @app.route('/admin/service-history')
 @admin_required
 def service_history():
-    """View REAL service requests from actual users with filters"""
-    status_filter = request.args.get('status', 'all')
-    start_date = request.args.get('start_date', '')
-    end_date = request.args.get('end_date', '')
-    
-    all_requests = manager._service_requests
-    
-    filtered_requests = all_requests
-    if status_filter != 'all':
-        filtered_requests = [r for r in filtered_requests if r.status.value == status_filter]
-    
-    if start_date:
-        try:
-            start = datetime.strptime(start_date, '%Y-%m-%d')
-            filtered_requests = [r for r in filtered_requests 
-                               if datetime.strptime(r.date_requested, '%Y-%m-%d %H:%M:%S') >= start]
-        except:
-            pass
-    
-    if end_date:
-        try:
-            end = datetime.strptime(end_date, '%Y-%m-%d')
-            end = end.replace(hour=23, minute=59, second=59)
-            filtered_requests = [r for r in filtered_requests 
-                               if datetime.strptime(r.date_requested, '%Y-%m-%d %H:%M:%S') <= end]
-        except:
-            pass
-    
-    status_summary = manager.get_service_status_summary()
-    
-    return render_template('service_history.html',
-                         requests=[req.to_dict() for req in filtered_requests],
-                         current_filter=status_filter,
-                         start_date=start_date,
-                         end_date=end_date,
-                         status_summary=status_summary)
+    return redirect(url_for('admin_dashboard', section='history'))
 
-@app.route('/admin/update-request-status/<request_id>', methods=['POST'])
-@admin_required
-def update_request_status(request_id):
-    """Update service request status"""
-    new_status = request.form.get('status')
-    service_req = manager.get_request_by_id(request_id)
-    
-    if service_req and new_status:
-        if new_status == 'pending':
-            service_req.status = RequestStatus.PENDING
-        elif new_status == 'ongoing':
-            service_req.status = RequestStatus.ONGOING
-        elif new_status == 'completed':
-            service_req.status = RequestStatus.COMPLETED
-            if service_req.payment_status == PaymentStatus.PAID:
-                manager._service_history_manager.create_transaction(service_req)
-        
-        manager.log_activity(session['username'], "Updated Request Status", 
-                           f"Request {request_id} -> {new_status}")
-    
-    return redirect(url_for('service_history'))
-
+# ===== REPORTING ROUTES =====
 @app.route('/admin/reports/monthly', methods=['GET', 'POST'])
 @admin_required
 def monthly_report():
-    """Generate and view monthly reports from REAL data"""
     report_data = None
     selected_year = None
     selected_month = None
@@ -1678,10 +1625,8 @@ def monthly_report():
                         amount = req.payment_amount or 0
                         monthly_income += amount
                         transaction_count += 1
-                        
                         day = req.completion_date.day
                         daily_breakdown[day] = daily_breakdown.get(day, 0) + amount
-                        
                         category = req.category
                         service_breakdown[category] = service_breakdown.get(category, 0) + amount
         
@@ -1709,7 +1654,6 @@ def monthly_report():
 @app.route('/admin/reports/daily')
 @admin_required
 def daily_report():
-    """View daily income report from REAL data"""
     date_str = request.args.get('date')
     if date_str:
         try:
@@ -1746,7 +1690,6 @@ def daily_report():
 @app.route('/admin/reports/statistics')
 @admin_required
 def statistics_report():
-    """View income statistics for a date range from REAL data"""
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
     
@@ -1793,7 +1736,6 @@ def statistics_report():
 @app.route('/user/history/<username>')
 @login_required
 def user_history(username):
-    """View service history for a specific user"""
     if session.get('username') != username and session.get('role') != 'admin':
         abort(403)
     
@@ -1921,7 +1863,7 @@ def update_request(request_id):
         
         if status == 'completed':
             if service_req.payment_status == PaymentStatus.PAID:
-                manager._service_history_manager.create_transaction(service_req)
+                manager.service_history_manager.create_transaction(service_req)
             if service_req.technician_id:
                 manager.unassign_technician_from_request(request_id)
         
@@ -2037,7 +1979,6 @@ def logout():
     session.clear()
     if username:
         manager.log_activity(username, "Logout", "User logged out")
-        
     return redirect(url_for('login'))
 
 # ===== ERROR HANDLERS =====
