@@ -3,696 +3,698 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>User Dashboard • ServiceHub</title>
-    <!-- Font Awesome for clean icons -->
+    <title>Dashboard • ServiceHub</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        :root {
+            --primary: #2a6df4;
+            --primary-soft: #e9f0ff;
+            --success: #0fa968;
+            --warning: #f59e0b;
+            --danger: #e74c3c;
+            --bg: #f5f7fc;
+            --surface: #ffffff;
+            --text: #1e1f2a;
+            --text-soft: #5a5f73;
+            --border: #e9ebf2;
+            --shadow: 0 2px 8px rgba(0,0,0,0.05);
         }
-
+        
         body {
             font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
-            background: #f5f7fc;
-            display: flex;
-            color: #1e1f2a;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
         }
-
-        /* ---------- PROFESSIONAL SIDEBAR (unchanged functionality) ---------- */
-        .sidebar {
-            width: 280px;
-            height: 100vh;
-            background: linear-gradient(145deg, #0f1a2b, #0b1422);
-            color: #e0e7ff;
-            padding: 30px 18px;
-            position: fixed;
-            box-shadow: 4px 0 24px rgba(0,0,0,0.06);
-            overflow-y: auto;
-            border-right: 1px solid rgba(255,255,255,0.03);
-        }
-
-        .sidebar h2 {
-            text-align: center;
-            margin-bottom: 28px;
-            font-size: 26px;
-            font-weight: 700;
-            letter-spacing: -0.01em;
+        
+        .navbar {
+            background: var(--surface);
+            padding: 0 30px;
+            height: 64px;
             display: flex;
             align-items: center;
-            justify-content: center;
-            gap: 8px;
-            color: white;
-        }
-
-        .profile-section {
-            text-align: center;
-            margin-bottom: 28px;
-            padding-bottom: 24px;
-            border-bottom: 1px solid #2d3a52;
-        }
-
-        .profile-pic {
-            width: 100px;
-            height: 100px;
-            border-radius: 50%;
-            margin: 0 auto 15px;
-            background: #1e2b41;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            cursor: pointer;
-            border: 3px solid #3b82f6;
-            transition: 0.15s;
-        }
-
-        .profile-pic:hover {
-            border-color: #60a5fa;
-        }
-
-        .profile-pic img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .profile-pic .no-photo {
-            font-size: 42px;
-            color: #b9c7e0;
-        }
-
-        .sidebar .username {
-            font-size: 18px;
-            font-weight: 600;
-            margin-bottom: 4px;
-        }
-
-        .sidebar .role {
-            font-size: 13px;
-            color: #9bb1d1;
-            background: #1f2e44;
-            display: inline-block;
-            padding: 3px 14px;
-            border-radius: 30px;
-        }
-
-        .sidebar .stats {
-            margin-top: 20px;
-            padding: 16px;
-            background: rgba(30, 50, 80, 0.3);
-            border-radius: 24px;
-            backdrop-filter: blur(4px);
-            border: 1px solid #2d405b;
-        }
-
-        .sidebar .stat-item {
-            display: flex;
             justify-content: space-between;
-            margin: 10px 0;
+            border-bottom: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .nav-brand {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .nav-brand i {
+            background: var(--primary);
+            color: white;
+            padding: 8px;
+            border-radius: 10px;
+            font-size: 16px;
+        }
+        
+        .nav-menu {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .nav-link {
+            color: var(--text-soft);
+            text-decoration: none;
+            font-weight: 500;
             font-size: 14px;
-        }
-
-        .logout-btn {
-            display: block;
-            text-align: center;
-            margin-top: 28px;
-            padding: 14px 12px;
-            background: #dc3545;
-            color: white;
-            text-decoration: none;
-            border-radius: 40px;
-            font-weight: 500;
-            transition: 0.15s;
-        }
-
-        .logout-btn:hover {
-            background: #bb2d3b;
-        }
-
-        .profile-link {
-            display: block;
-            text-align: center;
-            margin: 15px 0;
-            padding: 12px;
-            background: #253c5c;
-            color: white;
-            text-decoration: none;
-            border-radius: 40px;
-            font-weight: 500;
-        }
-
-        /* ---------- MAIN CONTENT (cleaner, modern) ---------- */
-        .content {
-            flex: 1;
-            margin-left: 280px;
-            padding: 30px 36px;
-        }
-
-        /* Professional cards */
-        .card {
-            background: #ffffff;
-            border-radius: 28px;
-            padding: 32px 34px;
-            margin-bottom: 32px;
-            box-shadow: 0 12px 28px rgba(0,0,0,0.02), 0 4px 12px rgba(0,0,0,0.02);
-            border: 1px solid #eaecf0;
-            transition: box-shadow 0.2s;
-        }
-
-        .card-header {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            margin-bottom: 28px;
-            padding-bottom: 18px;
-            border-bottom: 1.5px solid #edf2f7;
-        }
-
-        .card-header .icon {
-            font-size: 36px;
-            background: #eef4ff;
-            width: 60px;
-            height: 60px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 20px;
-            color: #2a6df4;
-        }
-
-        .card-header h2 {
-            color: #121826;
-            font-size: 1.8rem;
-            font-weight: 600;
-            letter-spacing: -0.01em;
-        }
-
-        .card-header p {
-            color: #5f6c84;
-            margin-top: 4px;
-            font-size: 0.95rem;
-        }
-
-        /* Form elements redesigned */
-        .form-group {
-            margin-bottom: 26px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 10px;
-            font-weight: 600;
-            color: #1e293b;
-            font-size: 0.95rem;
-        }
-
-        .required::after {
-            content: " *";
-            color: #e53e3e;
-        }
-
-        textarea {
-            width: 100%;
-            padding: 16px 18px;
-            border: 1.5px solid #e2e8f0;
-            border-radius: 20px;
-            font-family: inherit;
-            font-size: 15px;
-            background: #fafbfc;
-            resize: vertical;
-            transition: 0.15s;
-        }
-
-        textarea:focus {
-            outline: none;
-            border-color: #3b82f6;
-            background: white;
-            box-shadow: 0 0 0 4px rgba(59,130,246,0.08);
-        }
-
-        /* Photo upload — modern */
-        .photo-upload-box {
-            border: 2px dashed #cbd5e1;
-            border-radius: 24px;
-            padding: 28px 20px;
-            text-align: center;
-            background: #fbfdff;
-            cursor: pointer;
+            padding: 10px 20px;
+            border-radius: 12px;
             transition: all 0.2s;
-        }
-
-        .photo-upload-box:hover {
-            border-color: #3b82f6;
-            background: #f5f9ff;
-        }
-
-        .photo-preview {
-            margin-top: 18px;
-            display: none;
-        }
-
-        .photo-preview img {
-            max-width: 180px;
-            border-radius: 20px;
-            box-shadow: 0 6px 14px rgba(0,0,0,0.03);
-            border: 1px solid #eef2f6;
-        }
-
-        .file-input {
-            display: none;
-        }
-
-        /* Buttons */
-        .btn {
-            padding: 12px 26px;
-            border: none;
-            border-radius: 40px;
-            cursor: pointer;
-            font-size: 15px;
-            font-weight: 600;
-            transition: 0.15s;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .btn-primary {
-            background: #1e4bd2;
-            color: white;
-            box-shadow: 0 4px 10px rgba(30,75,210,0.1);
-        }
-
-        .btn-primary:hover {
-            background: #1a3faf;
-            transform: translateY(-1px);
-        }
-
-        .btn-secondary {
-            background: #f1f5f9;
-            color: #1e293b;
-            border: 1px solid #e2e8f0;
-        }
-
-        .btn-edit, .btn-delete, .btn-pay {
-            padding: 6px 12px;
-            border-radius: 30px;
-            font-size: 12px;
-            font-weight: 500;
-            text-decoration: none;
-            display: inline-block;
-            margin: 2px;
-            transition: 0.1s;
-        }
-
-        .btn-edit { background: #eef2ff; color: #1e4bd2; border: 1px solid #cddfff; }
-        .btn-delete { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
-        .btn-pay { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
-
-        /* Copy button */
-        .btn-copy {
-            background: #3b82f6;
-            color: white;
-            border: none;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 10px;
-            cursor: pointer;
-            margin-left: 8px;
-            transition: 0.1s;
-        }
-        .btn-copy:hover {
-            background: #2563eb;
-        }
-
-        /* Technician Contact Styles */
-        .technician-contact {
             display: flex;
             align-items: center;
             gap: 8px;
-            flex-wrap: wrap;
-            margin-top: 6px;
-            font-size: 13px;
         }
-        .contact-number {
-            font-family: monospace;
-            font-size: 13px;
-            font-weight: 600;
-            color: #0f766e;
-            background: #e6f7f5;
-            padding: 4px 10px;
-            border-radius: 20px;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        /* Alerts */
-        .alert {
-            padding: 16px 20px;
-            border-radius: 20px;
-            margin-top: 24px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            background: #ecfdf5;
-            color: #0b5e42;
-            border-left: 6px solid #10b981;
-        }
-
-        /* Table styling */
-        .requests-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.9rem;
-        }
-
-        .requests-table th {
-            text-align: left;
-            padding: 16px 8px;
-            background: #f8fafd;
-            font-weight: 600;
-            color: #334155;
-            border-bottom: 2px solid #e2e8f0;
-        }
-
-        .requests-table td {
-            padding: 16px 8px;
-            border-bottom: 1px solid #edf2f7;
-            vertical-align: middle;
-        }
-
-        .status-badge {
-            display: inline-block;
-            padding: 5px 14px;
-            border-radius: 40px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        .status-pending { background: #fef3c7; color: #92400e; }
-        .status-ongoing { background: #dbeafe; color: #1e40af; }
-        .status-completed { background: #d1fae5; color: #065f46; }
-
-        .payment-badge {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 30px;
+        
+        .nav-link:hover { background: var(--primary-soft); color: var(--primary); }
+        .nav-link.active { background: var(--primary); color: white; }
+        
+        .nav-link .badge-count {
+            background: rgba(255,255,255,0.3);
+            padding: 2px 8px;
+            border-radius: 10px;
             font-size: 11px;
             font-weight: 600;
         }
-
-        .payment-paid { background: #d1fae5; color: #065f46; }
-        .payment-unpaid { background: #fee2e2; color: #991b1b; }
-        .payment-pending { background: #fef3c7; color: #92400e; }
-
-        .photo-thumb {
-            width: 54px;
-            height: 54px;
-            object-fit: cover;
-            border-radius: 16px;
-            cursor: pointer;
-            border: 2px solid white;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        }
-
-        .technician-info {
+        
+        .nav-link:not(.active) .badge-count { background: var(--primary-soft); color: var(--primary); }
+        
+        .nav-user {
             display: flex;
-            flex-direction: column;
-            gap: 6px;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            position: relative;
         }
-
-        .technician-name {
-            color: #0f766e;
+        
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 14px;
+            overflow: hidden;
+        }
+        
+        .user-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        
+        .logout-btn {
+            padding: 8px 16px;
+            background: #fee2e2;
+            color: var(--danger);
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: 500;
+            text-decoration: none;
+            font-size: 13px;
+        }
+        
+        .profile-dropdown {
+            display: none;
+            position: absolute;
+            top: 50px;
+            right: 0;
+            background: var(--surface);
+            border-radius: 16px;
+            padding: 20px;
+            width: 280px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+            border: 1px solid var(--border);
+            z-index: 200;
+        }
+        
+        .profile-dropdown.show { display: block; }
+        
+        .profile-dropdown .user-info {
+            text-align: center;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .profile-dropdown .user-info .avatar-lg {
+            width: 60px; height: 60px; border-radius: 50%;
+            margin: 0 auto 10px;
+            background: var(--primary); color: white;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 24px; font-weight: 700; overflow: hidden;
+        }
+        
+        .profile-dropdown .user-info .avatar-lg img { width: 100%; height: 100%; object-fit: cover; }
+        
+        .profile-dropdown .upload-section { text-align: center; }
+        .profile-dropdown .upload-section label { font-size: 12px; color: var(--text-soft); margin-bottom: 8px; display: block; }
+        .profile-dropdown .upload-section input[type="file"] { width: 100%; font-size: 11px; margin-bottom: 8px; }
+        .profile-dropdown .upload-section .btn-upload {
+            width: 100%; padding: 8px; background: var(--primary); color: white;
+            border: none; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 500;
+        }
+        
+        .container { max-width: 1100px; margin: 0 auto; padding: 30px 20px; }
+        .page { display: none; }
+        .page.active { display: block; }
+        
+        .welcome-card {
+            background: linear-gradient(135deg, var(--primary), #1e5ad4);
+            color: white; padding: 30px; border-radius: 20px; margin-bottom: 30px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        
+        .welcome-text h1 { font-size: 24px; margin-bottom: 6px; }
+        .welcome-text p { opacity: 0.9; font-size: 14px; }
+        .welcome-stats { display: flex; gap: 30px; }
+        .welcome-stat { text-align: center; }
+        .welcome-stat .number { font-size: 28px; font-weight: 700; }
+        .welcome-stat .label { font-size: 12px; opacity: 0.8; margin-top: 4px; }
+        
+        .alert {
+            padding: 14px 20px; border-radius: 14px; margin-bottom: 20px;
+            font-weight: 500; font-size: 14px; display: flex; align-items: center; gap: 10px;
+        }
+        .alert-success { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+        .alert-info { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+        
+        .card {
+            background: var(--surface); border-radius: 20px; padding: 24px;
+            border: 1px solid var(--border); box-shadow: var(--shadow); margin-bottom: 24px;
+        }
+        
+        .card-header {
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;
+        }
+        .card-title { font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+        .card-title i { color: var(--primary); }
+        
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-weight: 500; margin-bottom: 6px; color: var(--text-soft); font-size: 13px; }
+        .form-group textarea {
+            width: 100%; padding: 12px 16px; border: 1px solid var(--border); border-radius: 12px;
+            font-size: 14px; font-family: inherit; transition: border 0.2s; min-height: 100px; resize: vertical;
+        }
+        .form-group textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+        .form-group input[type="file"] { font-size: 13px; }
+        
+        .photo-preview { margin-top: 10px; max-width: 150px; display: none; }
+        .photo-preview img { width: 100%; border-radius: 10px; }
+        
+        .btn {
+            padding: 12px 24px; border: none; border-radius: 12px; cursor: pointer;
+            font-weight: 600; font-size: 14px; transition: all 0.2s;
+            display: inline-flex; align-items: center; gap: 8px;
+        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: #1e5ad4; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-success { background: var(--success); color: white; }
+        .btn-xs { padding: 6px 12px; font-size: 12px; border-radius: 8px; text-decoration: none; }
+        .btn-outline { background: white; color: var(--primary); border: 2px solid var(--primary); }
+        
+        .badge {
+            display: inline-block; padding: 5px 12px; border-radius: 20px;
+            font-size: 11px; font-weight: 600;
+        }
+        .badge-pending { background: #fef3c7; color: #92400e; }
+        .badge-ongoing { background: #dbeafe; color: #1e40af; }
+        .badge-completed { background: #d1fae5; color: #065f46; }
+        .badge-paid { background: #d1fae5; color: #065f46; }
+        .badge-unpaid { background: #fef3c7; color: #92400e; }
+        .badge-verification { background: #dbeafe; color: #1e40af; }
+        
+        .empty-state { text-align: center; padding: 40px; color: #9ca3af; }
+        .empty-state i { font-size: 48px; margin-bottom: 16px; }
+        .empty-state p { font-size: 14px; }
+        
+        .stats-mini { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+        .stat-mini-card {
+            background: var(--surface); padding: 18px; border-radius: 16px;
+            text-align: center; border: 1px solid var(--border);
+        }
+        .stat-mini-card .number { font-size: 24px; font-weight: 700; }
+        .stat-mini-card .label { font-size: 12px; color: var(--text-soft); margin-top: 4px; }
+        
+        .filter-tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+        .filter-tab {
+            padding: 8px 16px; border-radius: 20px; border: 1px solid var(--border);
+            background: var(--surface); color: var(--text-soft); cursor: pointer;
+            font-size: 13px; font-weight: 500; transition: all 0.2s; text-decoration: none;
+        }
+        .filter-tab:hover { background: var(--primary-soft); color: var(--primary); }
+        .filter-tab.active { background: var(--primary); color: white; border-color: var(--primary); }
+        
+        /* ===== PROFESSIONAL REQUEST CARD ===== */
+        .request-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px 24px;
+            margin-bottom: 16px;
+            transition: box-shadow 0.2s, border-color 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .request-card:hover {
+            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+            border-color: var(--primary);
+        }
+        
+        .request-card::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: var(--border);
+        }
+        
+        .request-card.status-pending::before { background: #f59e0b; }
+        .request-card.status-ongoing::before { background: #3b82f6; }
+        .request-card.status-completed::before { background: #10b981; }
+        
+        .request-card-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        
+        .request-card-id {
             font-weight: 700;
+            font-size: 14px;
+            color: var(--primary);
+        }
+        
+        .request-card-service {
+            font-size: 15px;
+            font-weight: 500;
+            color: var(--text);
+            margin-bottom: 10px;
+            line-height: 1.5;
+        }
+        
+        .request-card-meta {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 14px;
+            font-size: 13px;
+            color: var(--text-soft);
+        }
+        
+        .request-card-meta span {
             display: flex;
             align-items: center;
             gap: 6px;
         }
-
-        .waiting-assignment {
-            color: #b45309;
-            font-style: italic;
+        
+        .request-card-meta i {
+            width: 16px;
+            color: var(--primary);
         }
-
-        .empty-state {
-            text-align: center;
-            padding: 48px;
-            color: #64748b;
+        
+        .request-card-bottom {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding-top: 14px;
+            border-top: 1px solid var(--border);
         }
-
-        .tips-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 18px;
+        
+        .request-card-info {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            font-size: 13px;
         }
-
-        .tip-item {
-            background: #f9fbfe;
-            padding: 20px;
-            border-radius: 22px;
+        
+        .request-card-info .info-block {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+        
+        .request-card-info .info-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-soft);
+            font-weight: 600;
+        }
+        
+        .request-card-info .info-value {
+            font-weight: 500;
+        }
+        
+        .request-card-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .admin-note-box {
+            background: #fffbeb;
+            border: 1px solid #fcd34d;
+            border-radius: 10px;
+            padding: 10px 14px;
+            margin-top: 12px;
+            font-size: 13px;
+            color: #92400e;
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+        }
+        
+        .admin-note-box i {
+            color: #f59e0b;
+            margin-top: 2px;
+        }
+        
+        .photo-thumb {
+            width: 60px;
+            height: 60px;
+            border-radius: 10px;
+            object-fit: cover;
+            cursor: pointer;
+            border: 2px solid var(--border);
+            transition: border-color 0.2s;
+        }
+        
+        .photo-thumb:hover { border-color: var(--primary); }
+        
+        .no-photo {
+            width: 60px;
+            height: 60px;
+            border-radius: 10px;
+            background: var(--bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #9ca3af;
+            font-size: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .welcome-card { flex-direction: column; gap: 20px; text-align: center; }
+            .welcome-stats { gap: 20px; justify-content: center; }
+            .nav-menu { gap: 4px; }
+            .nav-link { padding: 8px 12px; font-size: 13px; }
+            .request-card-top { flex-direction: column; }
+            .request-card-bottom { flex-direction: column; }
+            .request-card-actions { width: 100%; }
+            .request-card-actions .btn { flex: 1; justify-content: center; }
         }
     </style>
 </head>
 <body>
-
-<div class="sidebar">
-    <h2><i class="fas fa-toolbox" style="color: #3b82f6;"></i> ServiceHub</h2>
+    <!-- TOP NAVBAR -->
+    <nav class="navbar">
+        <div class="nav-brand">
+            <i class="fas fa-tools"></i> ServiceHub
+        </div>
+        <div class="nav-menu">
+            <a href="?page=dashboard" class="nav-link {% if page == 'dashboard' %}active{% endif %}">
+                <i class="fas fa-home"></i> Dashboard
+            </a>
+            <a href="?page=history" class="nav-link {% if page == 'history' %}active{% endif %}">
+                <i class="fas fa-history"></i> Service History
+                <span class="badge-count">{{ user_requests|length }}</span>
+            </a>
+        </div>
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <div class="nav-user" onclick="toggleProfileDropdown()">
+                {% if user and user.profile_pic_url %}
+                    <div class="user-avatar"><img src="{{ user.profile_pic_url }}" alt="Profile"></div>
+                {% elif user %}
+                    <div class="user-avatar">{{ user.firstname[:1] }}{{ user.lastname[:1] }}</div>
+                {% else %}
+                    <div class="user-avatar"><i class="fas fa-user"></i></div>
+                {% endif %}
+                <span style="font-weight: 500; font-size: 14px;">{{ user.firstname if user else 'User' }}</span>
+                <i class="fas fa-chevron-down" style="font-size: 10px; color: var(--text-soft);"></i>
+                
+                <div class="profile-dropdown" id="profileDropdown">
+                    <div class="user-info">
+                        {% if user and user.profile_pic_url %}
+                            <div class="avatar-lg"><img src="{{ user.profile_pic_url }}" alt="Profile"></div>
+                        {% elif user %}
+                            <div class="avatar-lg">{{ user.firstname[:1] }}{{ user.lastname[:1] }}</div>
+                        {% endif %}
+                        <strong>{{ user.firstname if user else '' }} {{ user.lastname if user else '' }}</strong>
+                        <p style="font-size: 12px; color: var(--text-soft);">@{{ user.username if user else '' }}</p>
+                    </div>
+                    <div class="upload-section">
+                        <label><i class="fas fa-camera"></i> Update Profile Photo</label>
+                        <form method="POST" enctype="multipart/form-data">
+                            <input type="file" name="profile_photo" accept="image/*">
+                            <button type="submit" class="btn-upload"><i class="fas fa-upload"></i> Upload</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <a href="/logout" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a>
+        </div>
+    </nav>
     
-    <div class="profile-section">
-        <div class="profile-pic" onclick="document.getElementById('profilePhotoInput').click()">
-            {% if user and user.profile_pic_url %}
-                <img src="{{ user.profile_pic_url }}" alt="Profile">
-            {% else %}
-                <div class="no-photo"><i class="fas fa-user-circle"></i></div>
-            {% endif %}
-        </div>
-        <div class="username">{{ session['username'] }}</div>
-        <div class="role"><i class="fas fa-user"></i> Customer</div>
-        <small style="display:block; margin-top:8px; opacity:0.7;">Click photo to change</small>
-    </div>
-
-    <div class="stats">
-        <div class="stat-item"><span><i class="fas fa-clipboard-list"></i> Total</span><span>{{ user_requests|length }}</span></div>
-        <div class="stat-item"><span><i class="fas fa-sync-alt"></i> On-Going</span><span>{{ user_requests|selectattr('status', 'equalto', 'ongoing')|list|length }}</span></div>
-        <div class="stat-item"><span><i class="fas fa-check-circle"></i> Completed</span><span>{{ user_requests|selectattr('status', 'equalto', 'completed')|list|length }}</span></div>
-        <div class="stat-item"><span><i class="fas fa-hourglass-half"></i> Pending</span><span>{{ user_requests|selectattr('status', 'equalto', 'pending')|list|length }}</span></div>
-    </div>
-
-    <a href="/profile" class="profile-link"><i class="fas fa-id-card"></i> View Full Profile</a>
-    <a href="/logout" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a>
-</div>
-
-<div class="content">
-    <!-- Hidden profile photo form -->
-    <form method="POST" action="/userdashboard" enctype="multipart/form-data" id="profilePhotoForm" style="display: none;">
-        <input type="file" name="profile_photo" id="profilePhotoInput" accept="image/*" onchange="this.form.submit()">
-    </form>
-
-    <!-- SUBMIT SERVICE REQUEST CARD -->
-    <div class="card">
-        <div class="card-header">
-            <div class="icon"><i class="fas fa-pen-to-square"></i></div>
-            <div>
-                <h2>Submit a service request</h2>
-                <p>Describe the issue — our technicians will review it promptly</p>
-            </div>
-        </div>
-
-        <form method="POST" action="/userdashboard" enctype="multipart/form-data" id="serviceRequestForm">
-            <div class="form-group">
-                <label for="service" class="required"><i class="fas fa-align-left" style="margin-right:6px;"></i>Problem description</label>
-                <textarea 
-                    id="service" 
-                    name="service" 
-                    placeholder="e.g., 'My refrigerator is not cooling. Model: LG XYZ-123. It started yesterday and makes a humming noise.'"
-                    rows="5"
-                    required
-                ></textarea>
-                <div style="font-size:13px; color:#64748b; margin-top:6px;">Include brand, model, and any error codes if possible.</div>
-            </div>
-
-            <div class="form-group">
-                <label><i class="fas fa-camera"></i> Upload photo (optional, but helpful)</label>
-                <div class="photo-upload-box" id="servicePhotoDropZone">
-                    <div style="font-size: 32px; margin-bottom: 8px;">📸</div>
-                    <div><strong>Click to upload a photo</strong></div>
-                    <div style="font-size: 13px; margin-top: 5px; color:#64748b;">PNG, JPG, JPEG, GIF (max 5MB)</div>
-                    <input type="file" name="service_photo" id="servicePhotoInput" accept="image/*" class="file-input">
-                </div>
-                <div class="photo-preview" id="servicePhotoPreview">
-                    <img id="servicePreviewImage" src="" alt="Preview">
-                    <br>
-                    <button type="button" class="btn-secondary" onclick="removeServicePhoto()" style="padding:6px 16px; margin-top:8px;"><i class="fas fa-trash-alt"></i> Remove</button>
-                </div>
-            </div>
-
-            <button type="submit" class="btn btn-primary">
-                <i class="fas fa-paper-plane"></i> Submit request
-            </button>
-        </form>
-
-        {% if service_message %}
-            <div class="alert"><i class="fas fa-check-circle"></i> {{ service_message }}</div>
-        {% endif %}
+    <div class="container">
         {% if profile_message %}
-            <div class="alert"><i class="fas fa-check-circle"></i> {{ profile_message }}</div>
+        <div class="alert alert-{{ 'success' if 'success' in profile_message.lower() else 'info' }}">
+            <i class="fas fa-{{ 'check-circle' if 'success' in profile_message.lower() else 'info-circle' }}"></i>
+            {{ profile_message }}
+        </div>
         {% endif %}
-    </div>
-
-    <!-- MY REQUESTS CARD - WITH TECHNICIAN CONTACT INFO ADDED -->
-    <div class="card">
-        <div class="card-header">
-            <div class="icon"><i class="fas fa-clock-rotate-left"></i></div>
-            <div>
-                <h2>My service requests</h2>
-                <p>Track progress, payment, and technician assignment</p>
+        
+        {% if service_message %}
+        <div class="alert alert-{{ 'success' if 'success' in service_message.lower() else 'info' }}">
+            <i class="fas fa-{{ 'check-circle' if 'success' in service_message.lower() else 'info-circle' }}"></i>
+            {{ service_message }}
+        </div>
+        {% endif %}
+        
+        {% if payment_success %}
+        <div class="alert alert-success">
+            <i class="fas fa-check-circle"></i> Payment of ₱{{ payment_amount }} via {{ payment_method }} submitted!
+        </div>
+        {% endif %}
+        
+        <!-- PAGE 1: DASHBOARD -->
+        <div class="page {% if page == 'dashboard' %}active{% endif %}" id="page-dashboard">
+            <div class="welcome-card">
+                <div class="welcome-text">
+                    <h1>Welcome back, {{ user.firstname if user else 'User' }}! 👋</h1>
+                    <p>Describe your service need and we'll match you with a technician</p>
+                </div>
+                <div class="welcome-stats">
+                    <div class="welcome-stat">
+                        <div class="number">{{ user_requests|length }}</div>
+                        <div class="label">Total</div>
+                    </div>
+                    <div class="welcome-stat">
+                        <div class="number">{{ user_requests|selectattr('status','equalto','completed')|list|length }}</div>
+                        <div class="label">Done</div>
+                    </div>
+                    <div class="welcome-stat">
+                        <div class="number">{{ user_requests|selectattr('status','equalto','pending')|list|length }}</div>
+                        <div class="label">Pending</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title"><i class="fas fa-plus-circle"></i> New Service Request</div>
+                </div>
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label><i class="fas fa-pen"></i> Describe Your Service Need *</label>
+                        <textarea name="service" placeholder="Example: My air conditioner is not cooling properly. It makes a strange noise when turned on..." required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fas fa-camera"></i> Attach Photo (Optional)</label>
+                        <input type="file" name="service_photo" accept="image/*" onchange="previewImage(this)">
+                        <div class="photo-preview" id="photoPreview"><img id="previewImg" src=""></div>
+                    </div>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Submit Request</button>
+                </form>
             </div>
         </div>
-
-        {% if user_requests %}
-            <table class="requests-table">
-                <thead>
-                    <tr>
-                        <th>ID</th><th>Description</th><th>Photo</th><th>Technician & Contact</th><th>Status</th><th>Payment</th><th>Date</th><th>Admin note</th><th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
+        
+        <!-- PAGE 2: SERVICE HISTORY (PROFESSIONAL CARDS) -->
+        <div class="page {% if page == 'history' %}active{% endif %}" id="page-history">
+            <div class="stats-mini">
+                <div class="stat-mini-card">
+                    <div class="number" style="color: var(--primary);">{{ user_requests|length }}</div>
+                    <div class="label">Total Requests</div>
+                </div>
+                <div class="stat-mini-card">
+                    <div class="number" style="color: var(--warning);">{{ user_requests|selectattr('status','equalto','pending')|list|length + user_requests|selectattr('status','equalto','ongoing')|list|length }}</div>
+                    <div class="label">Active</div>
+                </div>
+                <div class="stat-mini-card">
+                    <div class="number" style="color: var(--success);">{{ user_requests|selectattr('status','equalto','completed')|list|length }}</div>
+                    <div class="label">Completed</div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title"><i class="fas fa-history"></i> Service History</div>
+                </div>
+                
+                <div class="filter-tabs">
+                    <a href="?page=history" class="filter-tab {% if not status_filter %}active{% endif %}">All Requests</a>
+                    <a href="?page=history&status=pending" class="filter-tab {% if status_filter == 'pending' %}active{% endif %}">⏳ Pending</a>
+                    <a href="?page=history&status=ongoing" class="filter-tab {% if status_filter == 'ongoing' %}active{% endif %}">🔄 On-Going</a>
+                    <a href="?page=history&status=completed" class="filter-tab {% if status_filter == 'completed' %}active{% endif %}">✅ Completed</a>
+                </div>
+                
+                {% if user_requests %}
+                <div>
                     {% for req in user_requests %}
-                    <tr>
-                        <td><strong>#{{ req.id }}</strong></td>
-                        <td style="max-width:200px;">{{ req.service[:60] }}{% if req.service|length > 60 %}...{% endif %}</td>
-                        <td>
-                            {% if req.service_photo_url %}
-                                <img src="{{ req.service_photo_url }}" class="photo-thumb" onclick="window.open(this.src)">
-                            {% else %}<span style="color:#94a3b8;">—</span>{% endif %}
-                        </td>
-                        <!-- Technician & Contact Column (UPDATED with contact info) -->
-                        <td>
-                            {% if req.technician_name %}
-                                <div class="technician-info">
-                                    <div class="technician-name">
-                                        <i class="fas fa-user-gear" style="color:#0f766e;"></i>
-                                        <strong>{{ req.technician_name }}</strong>
-                                    </div>
-                                    {% if req.technician_specialty %}
-                                        <div style="font-size:12px; color:#64748b;">
-                                            <i class="fas fa-tools"></i> {{ req.technician_specialty }}
-                                        </div>
+                        {% if not status_filter or req.status == status_filter %}
+                        <div class="request-card status-{{ req.status }}">
+                            <!-- TOP: ID + Status -->
+                            <div class="request-card-top">
+                                <div style="display: flex; align-items: center; gap: 12px;">
+                                    <span class="request-card-id">#{{ req.id }}</span>
+                                    {% if req.status == 'pending' %}
+                                        <span class="badge badge-pending">⏳ Pending</span>
+                                    {% elif req.status == 'ongoing' %}
+                                        <span class="badge badge-ongoing">🔄 On-Going</span>
+                                    {% else %}
+                                        <span class="badge badge-completed">✅ Completed</span>
                                     {% endif %}
-                                    <!-- TECHNICIAN CONTACT NUMBER DISPLAYED HERE -->
-                                    <div class="technician-contact">
-                                        <span class="contact-number">
-                                            <i class="fas fa-phone-alt"></i> {{ req.technician_contact|default('Contact not available') }}
-                                        </span>
-                                        {% if req.technician_contact %}
-                                            <button class="btn-copy" onclick="copyToClipboard('{{ req.technician_contact }}')">
-                                                <i class="fas fa-copy"></i> Copy
-                                            </button>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    {% if req.service_photo_url %}
+                                        <img src="{{ req.service_photo_url }}" class="photo-thumb" onclick="window.open('{{ req.service_photo_url }}')" title="View photo">
+                                    {% else %}
+                                        <div class="no-photo"><i class="fas fa-image"></i></div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <!-- SERVICE DESCRIPTION -->
+                            <div class="request-card-service">{{ req.service }}</div>
+                            
+                            <!-- META INFO -->
+                            <div class="request-card-meta">
+                                <span><i class="fas fa-tag"></i> {{ req.category }}</span>
+                                <span><i class="fas fa-calendar"></i> {{ req.date_requested[:10] }}</span>
+                                <span><i class="fas fa-money-bill"></i> ₱{{ calculate_service_amount(req.category) }}</span>
+                            </div>
+                            
+                            <!-- ADMIN NOTE (if any) -->
+                            {% if req.admin_notes %}
+                            <div class="admin-note-box">
+                                <i class="fas fa-info-circle"></i>
+                                <div><strong>Admin Update:</strong> {{ req.admin_notes }}</div>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- BOTTOM: Technician + Payment + Actions -->
+                            <div class="request-card-bottom">
+                                <div class="request-card-info">
+                                    <!-- Technician -->
+                                    <div class="info-block">
+                                        <span class="info-label">Assigned Technician</span>
+                                        {% if req.technician_name %}
+                                            <span class="info-value">👨‍🔧 {{ req.technician_name }}</span>
+                                            {% if req.technician_contact %}
+                                                <span style="font-size: 11px; color: var(--text-soft);">📞 {{ req.technician_contact }}</span>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="info-value" style="color: #9ca3af;">Not assigned yet</span>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <!-- Payment -->
+                                    <div class="info-block">
+                                        <span class="info-label">Payment Status</span>
+                                        {% if req.payment_status == 'paid' %}
+                                            <span class="badge badge-paid">💰 Paid</span>
+                                        {% elif req.payment_status == 'for_verification' %}
+                                            <span class="badge badge-verification">🔍 Verifying</span>
+                                        {% elif req.payment_status == 'pending_cash' %}
+                                            <span class="badge badge-pending">💵 Cash Pending</span>
+                                        {% else %}
+                                            <span class="badge badge-unpaid">❌ Unpaid</span>
                                         {% endif %}
                                     </div>
                                 </div>
-                            {% else %}
-                                <span class="waiting-assignment"><i class="far fa-hourglass"></i> Pending assignment</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if req.status == 'pending' %}<span class="status-badge status-pending">Pending</span>
-                            {% elif req.status == 'ongoing' %}<span class="status-badge status-ongoing">On-Going</span>
-                            {% else %}<span class="status-badge status-completed">Completed</span>{% endif %}
-                        </td>
-                        <td>
-                            {% if req.payment_status == 'paid' %}<span class="payment-badge payment-paid">✅ Paid</span>
-                            {% elif req.payment_status == 'for_verification' %}<span class="payment-badge payment-pending">Verification</span>
-                            {% elif req.payment_status == 'pending_cash' %}<span class="payment-badge payment-pending">Cash pending</span>
-                            {% elif req.status == 'completed' %}<span class="payment-badge payment-unpaid">Unpaid</span>
-                            {% else %}<span class="payment-badge payment-unpaid">—</span>{% endif %}
-                        </td>
-                        <td>{{ req.date_requested[:16] }}</td>
-                        <td>
-                            {% if req.admin_notes %}
-                                <div style="background:#f1f5f9; padding:6px 10px; border-radius:16px; font-size:12px;">📌 {{ req.admin_notes }}</div>
-                            {% else %}<span style="color:#94a3b8;">—</span>{% endif %}
-                        </td>
-                        <td>
-                            {% if req.status == 'pending' %}
-                                <a href="/edit_request/{{ req.id }}" class="btn-edit"><i class="fas fa-pen"></i> Edit</a>
-                                <a href="/delete_my_request/{{ req.id }}" class="btn-delete" onclick="return confirm('Delete?')"><i class="fas fa-trash"></i> Del</a>
-                            {% elif req.status == 'completed' and req.payment_status != 'paid' and req.payment_status != 'for_verification' and req.payment_status != 'pending_cash' %}
-                                <a href="/create_payment/{{ req.id }}" class="btn-pay"><i class="fas fa-credit-card"></i> Pay</a>
-                            {% elif req.payment_status == 'for_verification' %}
-                                <span style="color:#b45309;"><i class="fas fa-spinner"></i> verifying</span>
-                            {% elif req.payment_status == 'pending_cash' %}
-                                <span style="color:#b45309;"><i class="fas fa-cash-register"></i> cash pending</span>
-                            {% elif req.payment_status == 'paid' %}
-                                <span style="color:#0f766e;"><i class="fas fa-check-circle"></i> Paid</span>
-                            {% else %}
-                                <span style="color:#94a3b8;">🔒</span>
-                            {% endif %}
-                        </td>
-                    </tr>
+                                
+                                <!-- Actions -->
+                                <div class="request-card-actions">
+                                    {% if req.status == 'pending' %}
+                                        <a href="/edit_request/{{ req.id }}" class="btn btn-outline btn-xs"><i class="fas fa-edit"></i> Edit</a>
+                                        <a href="/delete_my_request/{{ req.id }}" class="btn btn-danger btn-xs" onclick="return confirm('Delete this request?')"><i class="fas fa-trash"></i> Cancel</a>
+                                    {% elif req.status == 'ongoing' and req.payment_status in ['unpaid', 'pending_cash'] %}
+                                        <a href="/create_payment/{{ req.id }}" class="btn btn-success btn-xs"><i class="fas fa-credit-card"></i> Pay Now</a>
+                                    {% elif req.status == 'completed' and req.payment_status == 'paid' %}
+                                        <span style="color: var(--success); font-weight: 500; font-size: 13px;"><i class="fas fa-check-circle"></i> All Done</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
                     {% endfor %}
-                </tbody>
-            </table>
-        {% else %}
-            <div class="empty-state"><i class="fas fa-inbox" style="font-size:40px;"></i><p>No requests yet. Submit one above.</p></div>
-        {% endif %}
-    </div>
-
-    <!-- TIPS (modernized) -->
-    <div class="card">
-        <div class="card-header">
-            <div class="icon"><i class="fas fa-lightbulb"></i></div>
-            <div><h2>Tips for faster resolution</h2><p>Help our technicians serve you better</p></div>
-        </div>
-        <div class="tips-grid">
-            <div class="tip-item"><i class="fas fa-camera-retro" style="font-size:24px; color:#2563eb;"></i><br><strong>Clear photos</strong><p style="font-size:13px;">Multiple angles help diagnosis.</p></div>
-            <div class="tip-item"><i class="fas fa-file-lines"></i><br><strong>Detailed description</strong><p style="font-size:13px;">Brand, model, symptoms.</p></div>
-            <div class="tip-item"><i class="fas fa-credit-card"></i><br><strong>Online payment</strong><p style="font-size:13px;">GCash, Maya, bank transfer — verified faster.</p></div>
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <i class="fas fa-clipboard-list"></i>
+                    <p>No service requests yet</p>
+                    <p><a href="?page=dashboard" style="color: var(--primary);">Create your first request</a></p>
+                </div>
+                {% endif %}
+            </div>
         </div>
     </div>
-</div>
-
-<script>
-    // Copy to clipboard function
-    function copyToClipboard(text) {
-        navigator.clipboard.writeText(text).then(function() {
-            alert('✓ Contact number copied: ' + text);
-        }, function(err) {
-            console.error('Could not copy text: ', err);
-            alert('Failed to copy. Please copy manually.');
+    
+    <script>
+        function toggleProfileDropdown() {
+            document.getElementById('profileDropdown').classList.toggle('show');
+        }
+        document.addEventListener('click', function(e) {
+            const dropdown = document.getElementById('profileDropdown');
+            const navUser = document.querySelector('.nav-user');
+            if (!navUser.contains(e.target)) dropdown.classList.remove('show');
         });
-    }
-
-    // Service Request Photo Upload
-    const serviceDropZone = document.getElementById('servicePhotoDropZone');
-    const servicePhotoInput = document.getElementById('servicePhotoInput');
-    const servicePhotoPreview = document.getElementById('servicePhotoPreview');
-    const servicePreviewImage = document.getElementById('servicePreviewImage');
-
-    if (serviceDropZone) {
-        serviceDropZone.addEventListener('click', () => servicePhotoInput.click());
-    }
-    if (servicePhotoInput) {
-        servicePhotoInput.addEventListener('change', (e) => {
-            if (servicePhotoInput.files[0]) {
+        function previewImage(input) {
+            const preview = document.getElementById('photoPreview');
+            const previewImg = document.getElementById('previewImg');
+            if (input.files && input.files[0]) {
                 const reader = new FileReader();
-                reader.onload = (e) => {
-                    servicePreviewImage.src = e.target.result;
-                    servicePhotoPreview.style.display = 'block';
-                    serviceDropZone.style.display = 'none';
-                };
-                reader.readAsDataURL(servicePhotoInput.files[0]);
+                reader.onload = function(e) {
+                    previewImg.src = e.target.result;
+                    preview.style.display = 'block';
+                }
+                reader.readAsDataURL(input.files[0]);
+            } else {
+                preview.style.display = 'none';
             }
-        });
-    }
-    function removeServicePhoto() {
-        servicePhotoInput.value = '';
-        servicePhotoPreview.style.display = 'none';
-        serviceDropZone.style.display = 'block';
-        servicePreviewImage.src = '';
-    }
-</script>
+        }
+    </script>
 </body>
 </html>
