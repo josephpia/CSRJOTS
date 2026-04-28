@@ -285,4 +285,4 @@ ___
 Solution:Check spelling
 
 Admin: admin / 1234
-Staff: (username you made) / (userpassword you made)
+Staff: (username you made) / (userpassword you made) 
