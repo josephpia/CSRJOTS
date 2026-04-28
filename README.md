@@ -1,3 +1,6 @@
+## Live Server: pyservicehub.vercel.app
+___
+
 # Customer Service Request and Job Order Tracking System
 
 ## Title Description
@@ -110,8 +113,14 @@ You should see output similar to:
 ## Step 5: Access the Application
 Open your web browser and navigate to:
 
+##For Vscode
 http://127.0.0.1:5000/
 You should see the ServiceHub login page.
+
+##For Vercel
+pyservicehub.vercel.app
+You should see the ServiceHub login page.
+
 
 ## Step 6: Login with Demo Credentials
 Admin Account:
@@ -217,7 +226,7 @@ Admin Account:
 ---
 
 * **Module 3: Payment Processing**
-**Acess**
+**Access**
 **User** | Route: /process_payment_direct
 
 **Features**
@@ -239,9 +248,28 @@ Admin Account:
  * View payment status(cash pending, gcash pending, etc..)
 
 * **Module 4: Service History & Reporting**
-  **Currently Working**
 
-===
+**Features**
+**1.Sevice History**
+**Access**
+**Admin** | Route  /service-history
+ * Access via/Admin dashboard
+ * Click the "Service History"
+ * Can view the count of (pending, on-going, completed,  total request)
+ * Admin can select (all service history, pending, completed)
+ * Admin can set the start date and end date of (all service history, pending, completed)
+ * Click Apply or Clear the date you set
+ * View all service request history of (all service history, pending, completed)
+
+**2.Reports**
+**Access**
+**Admin** | Route  /reports
+* Click the "Reports"
+* Admin can select the (daily report, monthly report, statistic)
+* Click Daily report and set the date or select today to see the (Total Income, Transactions, Average per Transaction, Completed Services)
+* Click Monthly report and set the year and month to see the monthly income then click Generate Report
+* Click statitics and set the start date and end date to see the statistics income then click calculate
+  
 # Troubleshooting
 ___
 ## Issue:"Data disappears after restart"
