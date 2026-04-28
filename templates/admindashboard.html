@@ -17,7 +17,6 @@
             transition: background 0.2s, color 0.2s;
         }
 
-        /* Light theme (default) */
         body.light-theme {
             --bg-page: #f5f7fc;
             --surface: #ffffff;
@@ -116,6 +115,15 @@
             gap: 4px;
         }
 
+        .sidebar-label {
+            color: #7f9fcf;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 16px 18px 8px 18px;
+        }
+
         .menu-item {
             display: flex;
             align-items: center;
@@ -160,6 +168,20 @@
             padding-top: 18px;
         }
 
+        .notification-badge {
+            background: #e74c3c;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: auto;
+        }
+
+        .notification-badge.warning {
+            background: #f39c12;
+        }
+
         /* ========== MAIN CONTENT ========== */
         .main-content {
             margin-left: 280px;
@@ -170,10 +192,10 @@
         .top-bar {
             display: flex;
             justify-content: space-between;
-            align-items: center;
+            align-items: flex-start;
             margin-bottom: 32px;
             background: var(--surface);
-            padding: 14px 28px;
+            padding: 18px 28px;
             border-radius: 40px;
             box-shadow: var(--card-shadow);
             border: 1px solid var(--border-light);
@@ -188,12 +210,19 @@
             gap: 12px;
         }
 
+        .page-description {
+            color: var(--text-soft);
+            font-size: 13px;
+            margin-top: 4px;
+            margin-left: 38px;
+        }
+
         .admin-badge {
             display: flex;
             align-items: center;
             gap: 10px;
             background: var(--primary-soft);
-            padding: 6px 18px;
+            padding: 8px 20px;
             border-radius: 40px;
             color: var(--primary);
             font-weight: 500;
@@ -221,6 +250,10 @@
             border: 1px solid var(--border-light);
             box-shadow: var(--card-shadow);
             transition: transform 0.1s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
         }
 
         .stat-card .number {
@@ -293,6 +326,16 @@
         .badge-available { background: #d1fae5; color: #065f46; }
         .badge-busy { background: #fee2e2; color: #991b1b; }
 
+        body.dark-theme .badge-pending { background: #3d2e0a; color: #fbbf24; }
+        body.dark-theme .badge-ongoing { background: #1e3a5f; color: #93c5fd; }
+        body.dark-theme .badge-completed { background: #064e3b; color: #6ee7b7; }
+        body.dark-theme .badge-paid { background: #064e3b; color: #6ee7b7; }
+        body.dark-theme .badge-verification { background: #1e3a5f; color: #93c5fd; }
+        body.dark-theme .badge-rejected { background: #450a0a; color: #fca5a5; }
+        body.dark-theme .badge-available { background: #064e3b; color: #6ee7b7; }
+        body.dark-theme .badge-busy { background: #450a0a; color: #fca5a5; }
+        body.dark-theme .badge-pending { background: #3d2e0a; color: #fbbf24; }
+
         .btn {
             padding: 8px 16px;
             border: none;
@@ -321,6 +364,13 @@
             background: var(--surface);
             color: var(--text-main);
             font-size: 13px;
+        }
+
+        body.dark-theme select,
+        body.dark-theme input {
+            background: #2c3648;
+            border-color: #3a4556;
+            color: #eef2f6;
         }
 
         .photo-thumb {
@@ -392,24 +442,39 @@
             <p>Admin Command</p>
         </div>
         <div class="sidebar-menu">
+            <div class="sidebar-label">Main Menu</div>
+            
             <a href="?section=dashboard" class="menu-item {% if section == 'dashboard' %}active{% endif %}">
                 <i class="fas fa-chart-pie"></i> Dashboard
             </a>
             <a href="?section=requests" class="menu-item {% if section == 'requests' %}active{% endif %}">
                 <i class="fas fa-clipboard-list"></i> Service Request
+                {% if pending_requests > 0 %}
+                <span class="notification-badge">{{ pending_requests }}</span>
+                {% endif %}
             </a>
             <a href="?section=technicians" class="menu-item {% if section == 'technicians' %}active{% endif %}">
                 <i class="fas fa-user-cog"></i> Technician
             </a>
             <a href="?section=payments" class="menu-item {% if section == 'payments' %}active{% endif %}">
                 <i class="fas fa-credit-card"></i> Payment
+                {% set pending_count = payment_summary.pending_verification|default(0) + payment_summary.pending_cash_total|default(0) %}
+                {% if pending_count > 0 %}
+                <span class="notification-badge warning">{{ pending_count }}</span>
+                {% endif %}
             </a>
-            <a href="/admin/service-history" class="menu-item">
+            
+            <div class="sidebar-label">Records</div>
+            
+            <a href="?section=history" class="menu-item {% if section == 'history' %}active{% endif %}">
                 <i class="fas fa-history"></i> Service History
             </a>
             <a href="?section=reports" class="menu-item {% if section == 'reports' %}active{% endif %}">
                 <i class="fas fa-chart-bar"></i> Reports
             </a>
+            
+            <div class="sidebar-label">System</div>
+            
             <a href="?section=settings" class="menu-item {% if section == 'settings' %}active{% endif %}">
                 <i class="fas fa-sliders-h"></i> Settings
             </a>
@@ -422,17 +487,37 @@
     <!-- MAIN CONTENT -->
     <div class="main-content">
         <div class="top-bar">
-            <div class="page-title">
-                {% if section == 'dashboard' %}<i class="fas fa-chart-pie" style="color:var(--primary);"></i> Dashboard
-                {% elif section == 'requests' %}<i class="fas fa-clipboard-list"></i> Service Requests
-                {% elif section == 'payments' %}<i class="fas fa-credit-card"></i> Payment Management
-                {% elif section == 'technicians' %}<i class="fas fa-user-cog"></i> Technicians
-                {% elif section == 'reports' %}<i class="fas fa-chart-bar"></i> Reports & Analytics
-                {% elif section == 'settings' %}<i class="fas fa-sliders-h"></i> Settings
-                {% else %}Dashboard{% endif %}
+            <div>
+                <div class="page-title">
+                    {% if section == 'dashboard' %}
+                        <i class="fas fa-chart-pie" style="color:var(--primary);"></i> Dashboard Overview
+                    {% elif section == 'requests' %}
+                        <i class="fas fa-clipboard-list" style="color:var(--primary);"></i> Service Requests
+                    {% elif section == 'history' %}
+                        <i class="fas fa-history" style="color:var(--primary);"></i> Service History
+                    {% elif section == 'reports' %}
+                        <i class="fas fa-chart-bar" style="color:var(--primary);"></i> Reports & Analytics
+                    {% elif section == 'payments' %}
+                        <i class="fas fa-credit-card" style="color:var(--primary);"></i> Payment Management
+                    {% elif section == 'technicians' %}
+                        <i class="fas fa-user-cog" style="color:var(--primary);"></i> Technicians
+                    {% elif section == 'settings' %}
+                        <i class="fas fa-sliders-h" style="color:var(--primary);"></i> Settings
+                    {% endif %}
+                </div>
+                <div class="page-description">
+                    {% if section == 'dashboard' %}Overview of your service hub activity & performance
+                    {% elif section == 'requests' %}Manage all customer service requests and assign technicians
+                    {% elif section == 'history' %}View and filter complete service history records
+                    {% elif section == 'reports' %}Generate income reports and view business analytics
+                    {% elif section == 'payments' %}Verify online payments and confirm cash transactions
+                    {% elif section == 'technicians' %}Manage technician profiles and assignments
+                    {% elif section == 'settings' %}Customize your dashboard preferences
+                    {% endif %}
+                </div>
             </div>
             <div class="admin-badge">
-                <i class="fas fa-shield-alt"></i> Admin
+                <i class="fas fa-shield-alt"></i> Welcome, Admin
             </div>
         </div>
 
@@ -707,7 +792,77 @@
             </div>
         </div>
 
-        <!-- REPORTS SECTION (FIXED) -->
+        <!-- SERVICE HISTORY SECTION -->
+        <div class="section {% if section == 'history' %}active{% endif %}">
+            <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
+                <div class="stat-card">
+                    <div class="number" style="color: #f39c12;">{{ pending_requests }}</div>
+                    <div class="label">Pending</div>
+                </div>
+                <div class="stat-card">
+                    <div class="number" style="color: #3498db;">{{ ongoing_requests }}</div>
+                    <div class="label">On-going</div>
+                </div>
+                <div class="stat-card">
+                    <div class="number" style="color: #27ae60;">{{ completed_requests }}</div>
+                    <div class="label">Completed</div>
+                </div>
+                <div class="stat-card">
+                    <div class="number">{{ total_requests }}</div>
+                    <div class="label">Total Requests</div>
+                </div>
+            </div>
+            
+            <div class="data-table">
+                <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
+                    <a href="?section=history" class="btn {% if not request.args.get('status') %}btn-primary{% endif %}">All</a>
+                    <a href="?section=history&status=pending" class="btn {% if request.args.get('status') == 'pending' %}btn-primary{% endif %}">Pending</a>
+                    <a href="?section=history&status=ongoing" class="btn {% if request.args.get('status') == 'ongoing' %}btn-primary{% endif %}">On-going</a>
+                    <a href="?section=history&status=completed" class="btn {% if request.args.get('status') == 'completed' %}btn-primary{% endif %}">Completed</a>
+                </div>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Customer</th>
+                            <th>Service</th>
+                            <th>Category</th>
+                            <th>Date</th>
+                            <th>Status</th>
+                            <th>Payment</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% set status_filter = request.args.get('status', '') %}
+                        {% for req in service_requests %}
+                            {% if not status_filter or req.status == status_filter %}
+                            <tr>
+                                <td><strong>{{ req.id }}</strong></td>
+                                <td>{{ req.username }}</td>
+                                <td>{{ req.service[:40] }}{% if req.service|length > 40 %}...{% endif %}</td>
+                                <td>{{ req.category }}</td>
+                                <td>{{ req.date_requested[:10] }}</td>
+                                <td>
+                                    {% if req.status == 'pending' %}<span class="badge badge-pending">Pending</span>
+                                    {% elif req.status == 'ongoing' %}<span class="badge badge-ongoing">On-Going</span>
+                                    {% else %}<span class="badge badge-completed">Completed</span>{% endif %}
+                                </td>
+                                <td>
+                                    {% if req.payment_status == 'paid' %}<span class="badge badge-paid">Paid</span>
+                                    {% elif req.payment_status == 'for_verification' %}<span class="badge badge-verification">Verification</span>
+                                    {% elif req.payment_status == 'pending_cash' %}<span class="badge badge-pending">Pending Cash</span>
+                                    {% else %}<span class="badge badge-pending">Unpaid</span>{% endif %}
+                                </td>
+                            </tr>
+                            {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- REPORTS SECTION -->
         <div class="section {% if section == 'reports' %}active{% endif %}">
             <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
                 <div class="stat-card" style="text-align: center; cursor: pointer;" onclick="window.location.href='/admin/reports/daily'">
@@ -724,28 +879,6 @@
                     <i class="fas fa-chart-line" style="font-size: 2em; color: var(--warning);"></i>
                     <div class="number" style="font-size: 1.2em; margin-top: 10px;">Statistics</div>
                     <div class="label">Advanced analytics</div>
-                </div>
-            </div>
-            
-            <div class="data-table">
-                <h3><i class="fas fa-chart-simple"></i> Service Status Overview</h3>
-                <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
-                    <div class="stat-card">
-                        <div class="number" style="color: #f39c12;">{{ pending_requests|default(0) }}</div>
-                        <div class="label">Pending Requests</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="number" style="color: #3498db;">{{ ongoing_requests|default(0) }}</div>
-                        <div class="label">On-going Services</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="number" style="color: #27ae60;">{{ completed_requests|default(0) }}</div>
-                        <div class="label">Completed</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="number">{{ total_requests|default(0) }}</div>
-                        <div class="label">Total Requests</div>
-                    </div>
                 </div>
             </div>
         </div>
