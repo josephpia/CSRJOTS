@@ -111,10 +111,62 @@
             justify-content: center;
             font-weight: 600;
             font-size: 14px;
-            overflow: hidden;
         }
         
-        .user-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .user-details-dropdown {
+            display: none;
+            position: absolute;
+            top: 50px;
+            right: 0;
+            background: var(--surface);
+            border-radius: 16px;
+            padding: 20px;
+            width: 300px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+            border: 1px solid var(--border);
+            z-index: 200;
+        }
+        
+        .user-details-dropdown.show { display: block; }
+        
+        .user-details-dropdown .detail-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .user-details-dropdown .detail-item:last-child { border-bottom: none; }
+        
+        .user-details-dropdown .detail-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: var(--primary-soft);
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+        
+        .user-details-dropdown .detail-info {
+            flex: 1;
+        }
+        
+        .user-details-dropdown .detail-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-soft);
+            font-weight: 600;
+        }
+        
+        .user-details-dropdown .detail-value {
+            font-size: 14px;
+            font-weight: 500;
+        }
         
         .logout-btn {
             padding: 8px 16px;
@@ -126,47 +178,6 @@
             font-weight: 500;
             text-decoration: none;
             font-size: 13px;
-        }
-        
-        .profile-dropdown {
-            display: none;
-            position: absolute;
-            top: 50px;
-            right: 0;
-            background: var(--surface);
-            border-radius: 16px;
-            padding: 20px;
-            width: 280px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
-            border: 1px solid var(--border);
-            z-index: 200;
-        }
-        
-        .profile-dropdown.show { display: block; }
-        
-        .profile-dropdown .user-info {
-            text-align: center;
-            margin-bottom: 16px;
-            padding-bottom: 16px;
-            border-bottom: 1px solid var(--border);
-        }
-        
-        .profile-dropdown .user-info .avatar-lg {
-            width: 60px; height: 60px; border-radius: 50%;
-            margin: 0 auto 10px;
-            background: var(--primary); color: white;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 24px; font-weight: 700; overflow: hidden;
-        }
-        
-        .profile-dropdown .user-info .avatar-lg img { width: 100%; height: 100%; object-fit: cover; }
-        
-        .profile-dropdown .upload-section { text-align: center; }
-        .profile-dropdown .upload-section label { font-size: 12px; color: var(--text-soft); margin-bottom: 8px; display: block; }
-        .profile-dropdown .upload-section input[type="file"] { width: 100%; font-size: 11px; margin-bottom: 8px; }
-        .profile-dropdown .upload-section .btn-upload {
-            width: 100%; padding: 8px; background: var(--primary); color: white;
-            border: none; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 500;
         }
         
         .container { max-width: 1100px; margin: 0 auto; padding: 30px 20px; }
@@ -260,7 +271,6 @@
         .filter-tab:hover { background: var(--primary-soft); color: var(--primary); }
         .filter-tab.active { background: var(--primary); color: white; border-color: var(--primary); }
         
-        /* ===== PROFESSIONAL REQUEST CARD ===== */
         .request-card {
             background: var(--surface);
             border: 1px solid var(--border);
@@ -444,33 +454,54 @@
             </a>
         </div>
         <div style="display: flex; align-items: center; gap: 15px;">
-            <div class="nav-user" onclick="toggleProfileDropdown()">
-                {% if user and user.profile_pic_url %}
-                    <div class="user-avatar"><img src="{{ user.profile_pic_url }}" alt="Profile"></div>
-                {% elif user %}
-                    <div class="user-avatar">{{ user.firstname[:1] }}{{ user.lastname[:1] }}</div>
-                {% else %}
-                    <div class="user-avatar"><i class="fas fa-user"></i></div>
-                {% endif %}
-                <span style="font-weight: 500; font-size: 14px;">{{ user.firstname if user else 'User' }}</span>
+            <div class="nav-user" onclick="toggleDetails()">
+                <div class="user-avatar">{{ user.firstname[:1] if user else 'U' }}{{ user.lastname[:1] if user else '' }}</div>
+                <span style="font-weight: 500; font-size: 14px;">{{ user.firstname if user else 'User' }} {{ user.lastname if user else '' }}</span>
                 <i class="fas fa-chevron-down" style="font-size: 10px; color: var(--text-soft);"></i>
                 
-                <div class="profile-dropdown" id="profileDropdown">
-                    <div class="user-info">
-                        {% if user and user.profile_pic_url %}
-                            <div class="avatar-lg"><img src="{{ user.profile_pic_url }}" alt="Profile"></div>
-                        {% elif user %}
-                            <div class="avatar-lg">{{ user.firstname[:1] }}{{ user.lastname[:1] }}</div>
-                        {% endif %}
-                        <strong>{{ user.firstname if user else '' }} {{ user.lastname if user else '' }}</strong>
-                        <p style="font-size: 12px; color: var(--text-soft);">@{{ user.username if user else '' }}</p>
+                <!-- User Details Dropdown -->
+                <div class="user-details-dropdown" id="userDetails">
+                    <div class="detail-item">
+                        <div class="detail-icon"><i class="fas fa-user"></i></div>
+                        <div class="detail-info">
+                            <div class="detail-label">Full Name</div>
+                            <div class="detail-value">{{ user.firstname if user else '—' }} {{ user.middlename if user and user.middlename else '' }} {{ user.lastname if user else '—' }}</div>
+                        </div>
                     </div>
-                    <div class="upload-section">
-                        <label><i class="fas fa-camera"></i> Update Profile Photo</label>
-                        <form method="POST" enctype="multipart/form-data">
-                            <input type="file" name="profile_photo" accept="image/*">
-                            <button type="submit" class="btn-upload"><i class="fas fa-upload"></i> Upload</button>
-                        </form>
+                    <div class="detail-item">
+                        <div class="detail-icon"><i class="fas fa-at"></i></div>
+                        <div class="detail-info">
+                            <div class="detail-label">Username</div>
+                            <div class="detail-value">@{{ user.username if user else '—' }}</div>
+                        </div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-icon"><i class="fas fa-envelope"></i></div>
+                        <div class="detail-info">
+                            <div class="detail-label">Email</div>
+                            <div class="detail-value">{{ user.email if user else '—' }}</div>
+                        </div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-icon"><i class="fas fa-phone"></i></div>
+                        <div class="detail-info">
+                            <div class="detail-label">Phone</div>
+                            <div class="detail-value">{{ user.cellphone if user else '—' }}</div>
+                        </div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-icon"><i class="fas fa-map-marker-alt"></i></div>
+                        <div class="detail-info">
+                            <div class="detail-label">Address</div>
+                            <div class="detail-value">{{ user.address if user else '—' }}</div>
+                        </div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-icon"><i class="fas fa-calendar-alt"></i></div>
+                        <div class="detail-info">
+                            <div class="detail-label">Joined</div>
+                            <div class="detail-value">{{ user.join_date[:10] if user and user.join_date else '—' }}</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -479,13 +510,6 @@
     </nav>
     
     <div class="container">
-        {% if profile_message %}
-        <div class="alert alert-{{ 'success' if 'success' in profile_message.lower() else 'info' }}">
-            <i class="fas fa-{{ 'check-circle' if 'success' in profile_message.lower() else 'info-circle' }}"></i>
-            {{ profile_message }}
-        </div>
-        {% endif %}
-        
         {% if service_message %}
         <div class="alert alert-{{ 'success' if 'success' in service_message.lower() else 'info' }}">
             <i class="fas fa-{{ 'check-circle' if 'success' in service_message.lower() else 'info-circle' }}"></i>
@@ -541,7 +565,7 @@
             </div>
         </div>
         
-        <!-- PAGE 2: SERVICE HISTORY (PROFESSIONAL CARDS) -->
+        <!-- PAGE 2: SERVICE HISTORY -->
         <div class="page {% if page == 'history' %}active{% endif %}" id="page-history">
             <div class="stats-mini">
                 <div class="stat-mini-card">
@@ -575,7 +599,6 @@
                     {% for req in user_requests %}
                         {% if not status_filter or req.status == status_filter %}
                         <div class="request-card status-{{ req.status }}">
-                            <!-- TOP: ID + Status -->
                             <div class="request-card-top">
                                 <div style="display: flex; align-items: center; gap: 12px;">
                                     <span class="request-card-id">#{{ req.id }}</span>
@@ -596,17 +619,14 @@
                                 </div>
                             </div>
                             
-                            <!-- SERVICE DESCRIPTION -->
                             <div class="request-card-service">{{ req.service }}</div>
                             
-                            <!-- META INFO -->
                             <div class="request-card-meta">
                                 <span><i class="fas fa-tag"></i> {{ req.category }}</span>
                                 <span><i class="fas fa-calendar"></i> {{ req.date_requested[:10] }}</span>
                                 <span><i class="fas fa-money-bill"></i> ₱{{ calculate_service_amount(req.category) }}</span>
                             </div>
                             
-                            <!-- ADMIN NOTE (if any) -->
                             {% if req.admin_notes %}
                             <div class="admin-note-box">
                                 <i class="fas fa-info-circle"></i>
@@ -614,10 +634,8 @@
                             </div>
                             {% endif %}
                             
-                            <!-- BOTTOM: Technician + Payment + Actions -->
                             <div class="request-card-bottom">
                                 <div class="request-card-info">
-                                    <!-- Technician -->
                                     <div class="info-block">
                                         <span class="info-label">Assigned Technician</span>
                                         {% if req.technician_name %}
@@ -630,7 +648,6 @@
                                         {% endif %}
                                     </div>
                                     
-                                    <!-- Payment -->
                                     <div class="info-block">
                                         <span class="info-label">Payment Status</span>
                                         {% if req.payment_status == 'paid' %}
@@ -645,7 +662,6 @@
                                     </div>
                                 </div>
                                 
-                                <!-- Actions -->
                                 <div class="request-card-actions">
                                     {% if req.status == 'pending' %}
                                         <a href="/edit_request/{{ req.id }}" class="btn btn-outline btn-xs"><i class="fas fa-edit"></i> Edit</a>
@@ -673,11 +689,11 @@
     </div>
     
     <script>
-        function toggleProfileDropdown() {
-            document.getElementById('profileDropdown').classList.toggle('show');
+        function toggleDetails() {
+            document.getElementById('userDetails').classList.toggle('show');
         }
         document.addEventListener('click', function(e) {
-            const dropdown = document.getElementById('profileDropdown');
+            const dropdown = document.getElementById('userDetails');
             const navUser = document.querySelector('.nav-user');
             if (!navUser.contains(e.target)) dropdown.classList.remove('show');
         });
