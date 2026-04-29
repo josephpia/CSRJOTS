@@ -22,9 +22,34 @@
             box-shadow: 0 8px 20px rgba(0,0,0,0.2);
         }
 
+        /* 🔥 NEW LOGO STYLE */
+        .logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .logo img {
+            width: 45px;
+            height: 45px;
+        }
+
+        .logo h1 {
+            font-size: 24px;
+            margin: 0;
+            font-weight: bold;
+            color: #1f2937;
+        }
+
+        .logo span {
+            color: #22c55e;
+        }
+
         h2 {
             color: #1f2937;
-            margin-bottom: 25px;
+            margin-bottom: 20px;
         }
 
         input {
@@ -83,7 +108,14 @@
 <body>
 
 <div class="box">
-    <h2> Login</h2>
+
+    <!-- 🔥 LOGO ADDED HERE -->
+    <div class="logo">
+        <img src="{{ url_for('static', filename='images/logo.png') }}" alt="ServiceHub Logo">
+        <h1>Service<span>Hub</span></h1>
+    </div>
+
+    <h2>Login</h2>
 
     <form method="POST">
         <input type="text" name="username" placeholder="Username" required>
